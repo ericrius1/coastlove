@@ -23,17 +23,44 @@ const camera = new PerspectiveCamera( 55, 1.6, 0.1, 4000 );
 const keys = new Set();
 const input = { down: key => keys.has( key ), consumeLook() {} };
 plane.launch( new Vector3( 0, 10, - 100 ), 0 );
+const takeoffHeight = plane.position.y;
+for ( let i = 0; i < 180; i ++ ) plane.update( 1 / 60, input, camera );
+assert.ok( Math.abs( plane.position.y - takeoffHeight ) < 0.2, 'holds altitude without a key' );
+assert.ok( plane.speed < 30, 'relaxed cruise is the default' );
 keys.add( 'KeyA' ); keys.add( 'Space' );
 for ( let i = 0; i < 120; i ++ ) plane.update( 1 / 60, input, camera );
-assert.ok( plane.heading > 1 && plane.bank < - 0.4, 'banking turn' );
-assert.ok( plane.position.y > 50, 'climb' );
+assert.ok( plane.heading > .9 && plane.bank < - .25 && plane.bank > - .36, 'gentle banking turn' );
+assert.ok( plane.position.y > takeoffHeight + 20, 'climb and hold selected altitude' );
+keys.clear();
+for ( let i = 0; i < 180; i ++ ) plane.update( 1 / 60, input, camera );
+assert.ok( Math.abs( plane.position.y - plane.cruiseAltitude ) < 2 && Math.abs( plane.climb ) < 1, 'releasing climb settles at selected altitude' );
+keys.add( 'KeyW' );
+for ( let i = 0; i < 120; i ++ ) plane.update( 1 / 60, input, camera );
+assert.ok( plane.speed > 38 && plane.speed < 44, 'W is a manageable faster cruise' );
+keys.clear(); keys.add( 'KeyS' );
+for ( let i = 0; i < 180; i ++ ) plane.update( 1 / 60, input, camera );
+assert.ok( plane.speed < 16, 'S slows for sightseeing' );
 keys.clear(); keys.add( 'KeyC' );
 for ( let i = 0; i < 600; i ++ ) plane.update( 1 / 60, input, camera );
-assert.ok( plane.position.y >= Math.max( 0, flat.heightAt( plane.position.x, plane.position.z ) ) + 7, 'terrain clearance' );
+assert.ok( plane.position.y >= Math.max( 0, flat.heightAt( plane.position.x, plane.position.z ) ) + 15, 'terrain clearance' );
 assert.ok( Number.isFinite( camera.position.x ) && Number.isFinite( camera.quaternion.w ) );
 plane.position.set( 2000, 40, 2000 ); plane.update( 1, input, camera );
 assert.ok( Math.abs( plane.position.x ) <= flat.size / 2 && Math.abs( plane.position.z ) <= flat.size / 2, 'world bounds recovery' );
 console.log( 'ok flight, climb, banking, terrain clearance, camera, boundary recovery' );
+
+const ridge = { size: 2048, heightAt: ( x, z ) => Math.max( 0, 120 * ( 1 - Math.abs( z - 100 ) / 100 ) ) };
+const assisted = new Seaplane( scene, ridge );
+assisted.launch( new Vector3( 0, 0, - 250 ), 0 );
+let highest = assisted.position.y;
+keys.clear();
+for ( let i = 0; i < 28 * 60; i ++ ) {
+	assisted.update( 1 / 60, input, camera );
+	highest = Math.max( highest, assisted.position.y );
+	assert.ok( assisted.position.y >= ridge.heightAt( assisted.position.x, assisted.position.z ) + 15 - 1e-5 );
+}
+assert.ok( highest > 135, 'autopilot climbs over an approaching ridge' );
+assert.ok( assisted.position.y < 70, 'autopilot returns to cruise height beyond the ridge' );
+console.log( 'ok assisted altitude holds, climbs over a ridge and settles afterward' );
 
 const base = new TerrainData( 19 );
 const enlarged = new TerrainData( 19, { landScale: Math.SQRT2 } );

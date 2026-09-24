@@ -10,9 +10,10 @@ export class Seaplane {
 		this.group.visible = false;
 		this.position = this.group.position;
 		this.heading = 0;
-		this.speed = 30;
+		this.speed = 26;
 		this.bank = 0;
 		this.climb = 0;
+		this.cruiseAltitude = 55;
 		this.time = 0;
 		const material = createPropMaterial( 'seaplane' );
 		material.underwaterLighting = 'lite';
@@ -44,10 +45,11 @@ export class Seaplane {
 
 	launch( position, heading ) {
 		this.position.copy( position );
-		this.position.y = Math.max( position.y + 18, this.terrain.heightAt( position.x, position.z ) + 35, 40 );
+		this.position.y = Math.max( position.y + 18, this.terrain.heightAt( position.x, position.z ) + 45, 55 );
 		this.heading = heading;
 		this.bank = this.climb = 0;
-		this.speed = 30;
+		this.cruiseAltitude = this.position.y;
+		this.speed = 26;
 		this.group.visible = true;
 		this.cameraReady = false;
 	}
@@ -57,12 +59,12 @@ export class Seaplane {
 		this.time += dt;
 		const steer = Number( input.down( 'KeyA' ) ) - Number( input.down( 'KeyD' ) );
 		const boost = input.down( 'ShiftLeft' ) || input.down( 'ShiftRight' );
-		const targetSpeed = boost ? 100 : input.down( 'KeyW' ) ? 65 : input.down( 'KeyS' ) ? 22 : 44;
-		this.speed += ( targetSpeed - this.speed ) * ( 1 - Math.exp( - dt * 1.5 ) );
-		this.heading += steer * dt * 0.65;
-		this.bank += ( - steer * 0.5 - this.bank ) * ( 1 - Math.exp( - dt * 3 ) );
+		const targetSpeed = boost ? 62 : input.down( 'KeyW' ) ? 42 : input.down( 'KeyS' ) ? 14 : 26;
+		this.speed += ( targetSpeed - this.speed ) * ( 1 - Math.exp( - dt * 1.8 ) );
+		this.heading += steer * dt * 0.52;
+		this.bank += ( - steer * 0.29 - this.bank ) * ( 1 - Math.exp( - dt * 3.5 ) );
 		const vertical = Number( input.down( 'Space' ) ) - Number( input.down( 'KeyC' ) );
-		this.climb += ( vertical * 16 - this.climb ) * ( 1 - Math.exp( - dt * 2 ) );
+		this.cruiseAltitude = Math.max( 20, Math.min( 550, this.cruiseAltitude + vertical * 24 * dt ) );
 		this.position.x += Math.sin( this.heading ) * this.speed * dt;
 		this.position.z += Math.cos( this.heading ) * this.speed * dt;
 		const edge = this.terrain.size / 2 - 40;
@@ -71,15 +73,19 @@ export class Seaplane {
 			this.position.x = Math.max( - edge, Math.min( edge, this.position.x ) );
 			this.position.z = Math.max( - edge, Math.min( edge, this.position.z ) );
 		}
-		// Arcade terrain following: always leave enough room for the floats.
-		const ground = Math.max( 0, this.terrain.heightAt( this.position.x, this.position.z ), this.terrain.heightAt( this.position.x + Math.sin( this.heading ) * 14, this.position.z + Math.cos( this.heading ) * 14 ) );
-		this.position.y = Math.max( ground + 7, Math.min( 620, this.position.y + this.climb * dt ) );
+		// Assisted flight holds the chosen altitude. Look ahead so hills trigger a
+		// smooth climb; the final clearance guard prevents clipping a sharp ridge.
+		const ground = Math.max( 0, this.terrain.heightAt( this.position.x, this.position.z ), this.terrain.heightAt( this.position.x + Math.sin( this.heading ) * 36, this.position.z + Math.cos( this.heading ) * 36 ) );
+		const desired = Math.max( this.cruiseAltitude, ground + 34 );
+		const targetClimb = Math.max( - 20, Math.min( 26, ( desired - this.position.y ) * 1.15 ) );
+		this.climb += ( targetClimb - this.climb ) * ( 1 - Math.exp( - dt * 3 ) );
+		this.position.y = Math.max( ground + 15, Math.min( 620, this.position.y + this.climb * dt ) );
 		this.group.quaternion.setFromEuler( new Euler( - Math.atan2( this.climb, this.speed ), this.heading, this.bank, 'YXZ' ) );
 		this.propeller.rotation.z += dt * 65;
 		this._target.copy( this.position );
-		this._target.x -= Math.sin( this.heading ) * 22;
-		this._target.z -= Math.cos( this.heading ) * 22;
-		this._target.y = Math.max( this.position.y + 8, this.terrain.heightAt( this._target.x, this._target.z ) + 5 );
+		this._target.x -= Math.sin( this.heading ) * 19;
+		this._target.z -= Math.cos( this.heading ) * 19;
+		this._target.y = Math.max( this.position.y + 7, this.terrain.heightAt( this._target.x, this._target.z ) + 5 );
 		if ( ! this.cameraReady ) { this._camera.copy( this._target ); this.cameraReady = true; }
 		this._camera.lerp( this._target, 1 - Math.exp( - dt * 5 ) );
 		camera.position.copy( this._camera );

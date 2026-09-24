@@ -12,14 +12,14 @@ npm install
 npm run dev
 ```
 
-Open **http://127.0.0.1:5190** in Chrome with WebGPU enabled. The first visit compiles shaders. Double-click `Play Coastlove.command` for subsequent launches on this Mac.
+Open **http://127.0.0.1:5190** in Chrome with WebGPU enabled. The first visit compiles shaders. Double-click `Play Coastlove.command` for subsequent launches on this Mac. The same build is published through GitHub Pages at [ericrius1.github.io/coastlove](https://ericrius1.github.io/coastlove/).
 
 | Control | Action |
 | --- | --- |
 | 1 / 2 / 3 | Boat / seaplane / safe arrival on foot |
-| WASD | Walk, steer the boat, or turn/change speed in flight |
+| WASD | Walk, steer the boat, or gently turn/change speed in flight |
 | Shift | Run or boost |
-| Space / C in flight | Climb / descend |
+| Space / C in flight | Raise / lower the chosen altitude; release to hold it |
 | Hold Z + two-finger trackpad swipe | Scrub time backward / forward; horizontal and vertical gestures work |
 | Hold Z + mouse drag | Alternative time scrub |
 | E | Enter / exit a nearby car, talk, or interact |
@@ -37,6 +37,8 @@ The 8.192 × 8.192 km world covers **67.1 km²**, about **8× Windward’s overa
 The shoreline comes from **Natural Earth’s real land polygons**, projected around Santa Barbara Harbor and scaled uniformly **1:18 horizontally**. The actual island arrangement and coastline shapes are retained. Natural Earth is cartographic data at 1:10 million scale, not a 10-metre survey. Elevation is procedural, with interpolated ridges, softened arrival areas, and invented story locations. The village, characters, and embellished landmarks are fictional. This is an artistic playable interpretation, not a surveyed recreation or navigation map.
 
 There are four three-part NPC stories, 20 wandering island foxes, 12 sea lions, ten saved discoveries, a poppy/lupine bluff, wind-shaped grove, sea arch, lighthouse with a rotating night beam, luminous grotto, ship’s bell, and a telescope camp. Tidewater’s ocean, sky, fishing, marine life, sound, and boat physics are retained. The seaplane is an arcade travel mode with terrain clearance; switching to 3 provides the safe walking arrival.
+
+The seaplane now cruises gently when you release the speed keys. Hold W to fly faster, S to slow down, and Shift for a short fast crossing. Space/C adjusts the altitude you want; releasing them keeps the plane level while it climbs automatically over terrain. Use 3 to arrive safely on foot.
 
 ## Coastal driving
 

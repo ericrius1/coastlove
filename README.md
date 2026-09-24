@@ -64,10 +64,11 @@ npm run test:california
 npm run test:traffic
 npm run test:controls
 npm run test:metric
+npm run test:water
 npm run build
 ```
 
-Tests cover metre projection and data completeness, bridge surfaces, terrain visibility, safe arrivals, flight controls, wildlife budgets, vehicle interactions, ten simulated minutes of NPC driving, arcade steering, drifting, ramp jumps, landings and collision substeps. Browser tests in `test/controls-browser.mjs` exercise map focus, continued simulation, pan/zoom, teleportation and unified E interactions against the running app.
+The WebGPU water regression checks temporal response at 30, 60 and 120 fps while preserving static detail. Tests cover metre projection and data completeness, bridge surfaces, terrain visibility, safe arrivals, flight controls, wildlife budgets, vehicle interactions, ten simulated minutes of NPC driving, arcade steering, drifting, ramp jumps, landings and collision substeps. Browser tests in `test/controls-browser.mjs` exercise map focus, continued simulation, pan/zoom, teleportation and unified E interactions against the running app.
 
 Data rebuild scripts and prerequisites are documented in [public/geodata/README.md](public/geodata/README.md). Normal builds do not need Python or live map APIs. Pushing `main` builds and deploys through GitHub Actions.
 

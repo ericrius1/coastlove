@@ -69,7 +69,7 @@ const CARDS = [
 	{
 		eyebrow: 'Welcome to Coastlove',
 		title: 'The coast is calling',
-		body: `<p>Meet <b>nine storytellers</b>, from the Channel Islands to the redwoods. Follow the bearing and distance on the travel card, then press <b>E</b> nearby to hear their stories. Find island foxes and sea lions wandering the island. Your <b>J</b> coastal chart remembers every discovery and offers easy visits. Hold <b>Z</b> and swipe your trackpad with two fingers to travel through the hours. The California coast runs from Border Field to Oregon, with the Bay and offshore islands. Distances are compressed for play, with imagined streets and people.</p>
+		body: `<p>Meet <b>nine storytellers</b>, from the Channel Islands to the redwoods. Follow the bearing and distance on the travel card, then press <b>E</b> nearby to hear their stories. Find island foxes and sea lions wandering the island. Press <b>M</b> for the full-screen map: drag to pan, scroll to zoom, then choose a destination and teleport. Your <b>J</b> field notes remember every discovery. Hold <b>Z</b> and swipe your trackpad with two fingers to travel through the hours. The California coast runs from Border Field to Oregon, with the Bay and offshore islands. Distances are compressed for play, with imagined streets and people.</p>
 			<p>Press <b>1</b> for the boat, <b>2</b> for Marigold the seaplane, or <b>3</b> to arrive safely on land. In flight, move on the trackpad to fly the nose: left/right turns and up/down climbs or dives. <b>A/D</b> also turn, <b>W/S</b> change speed, <b>Shift + W</b> cruises the coast faster, <b>L</b> levels the nose, and <b>Space/C</b> rise or descend. Fishing, Joe’s market and Marta’s upgrades are still here whenever you want them.</p>`,
 	},
 	{
@@ -89,7 +89,7 @@ const CARDS = [
 		title: 'Joe and Marta',
 		body: `<div class="gm-guide-list">
 			${ row( k( 'W', 'A', 'S', 'D' ), 'Move, mouse to look, <kbd>Shift</kbd> to run' ) }
-			${ row( k( 'E' ), 'Board the boat, take the helm, talk to Joe and Marta' ) }
+			${ row( k( 'E' ), 'Enter / exit vehicles, talk to Joe and Marta' ) }
 			${ row( k( 'F1' ), 'All controls, and this guide again' ) }
 		</div>
 		<div class="gm-guide-where">
@@ -106,7 +106,7 @@ const TIPS = {
 	fishOn: '<b>Hold the left mouse button</b> to reel. When the tension needle nears the <b>red</b>, let go until it settles, then reel again.',
 	caught: 'Into the cooler (<kbd>I</kbd>). Sell your catch to <b>Joe</b> at the fish stand by the pier: he is on the map.',
 	full: 'Your cooler is <b>full</b>. Sell to Joe, or buy a bigger hold from Marta at the chandlery.',
-	boat: 'Your boat. <kbd>E</kbd> to board, <kbd>E</kbd> again at the wheel to drive (<kbd>W</kbd><kbd>S</kbd> throttle, <kbd>A</kbd><kbd>D</kbd> steer). Diesel is sold by Marta.',
+	boat: 'Your boat. <kbd>E</kbd> to board and drive; <kbd>E</kbd> to get out (<kbd>W</kbd><kbd>S</kbd> throttle, <kbd>A</kbd><kbd>D</kbd> steer). Diesel is sold by Marta.',
 	joe: '<b>Joe</b> buys your fish. <kbd>E</kbd> to see what he will pay.',
 	marta: '<b>Marta</b> sells upgrades and diesel. <kbd>E</kbd> to see her stock.',
 };

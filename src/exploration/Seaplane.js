@@ -19,6 +19,7 @@ export class Seaplane {
 		this.group = new Group();
 		this.group.name = 'Coastlove courier seaplane';
 		this.group.visible = false;
+		this.parked = false;
 		this.position = this.group.position;
 		this.heading = 0;
 		this.pitch = 0;
@@ -55,6 +56,7 @@ export class Seaplane {
 	}
 
 	launch( position, heading ) {
+		this.parked = false;
 		this.position.copy( position );
 		this.position.y = Math.max( position.y + 18, this.terrain.heightAt( position.x, position.z ) + 45, (this.clearance?.(position.x,position.z,position.x,position.z)||0)+30, 55 );
 		this.heading = heading;
@@ -64,6 +66,12 @@ export class Seaplane {
 		this.group.visible = true;
 		this.cameraReady = false;
 	}
+
+ park(position,heading){
+  this.position.copy(position);this.heading=heading;this.pitch=this.bank=this.climb=this.speed=0;
+  this.group.quaternion.setFromEuler(new Euler(0,heading,0,'YXZ'));
+  this.group.visible=true;this.parked=true;this.cameraReady=false;
+ }
 
 	update( dt, input, camera ) {
 		dt = Math.min( dt, 0.05 );

@@ -5,7 +5,7 @@ export function checkTraffic(app){
  const e=app.exploration,t=e.traffic,p=app.player,input=app.input,results=[];
  const check=(ok,message)=>{if(!ok)throw new Error(message);results.push(message);};
  const saved={pos:p.position.clone(),mode:p.mode,yaw:p.yaw,pitch:p.pitch,free:app.freeCam,active:t.active,enabled:input.enabled,cam:app.camera.position.clone(),quat:app.camera.quaternion.clone(),time:t.time};
- const cars=t.cars.map(c=>({position:c.position.clone(),heading:c.heading,speed:c.speed,steer:c.steer,wait:c.wait,s:c.s,direction:c.direction,rejoin:c.rejoin,ignorePedUntil:c.ignorePedUntil}));
+ const cars=t.cars.map(c=>({position:c.position.clone(),heading:c.heading,speed:c.speed,steer:c.steer,wait:c.wait,s:c.s,direction:c.direction,rejoin:c.rejoin,ignorePedUntil:c.ignorePedUntil,route:c.route}));
  const press=code=>{window.dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true}));e.beforeUpdate();window.dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));input.endFrame();};
  try{
   input.enabled=true;app.freeCam=false;t.active=null;p.mode='walk';p.position.set(0,app.terrainData.heightAt(0,-900),-900);
@@ -17,7 +17,7 @@ export function checkTraffic(app){
   const car=t.cars[0];car.speed=0;car.wait=10;
   const x=car.position.x+Math.cos(car.heading)*2.4,z=car.position.z-Math.sin(car.heading)*2.4;
   p.position.set(x,app.terrainData.heightAt(x,z),z);
-  press('KeyE');check(p.mode==='car'&&t.active===car,'E enters nearby NPC car');check(car.driver.position.x<0,'NPC rides as passenger');check(!app.boatCtl.driven&&!e.plane.group.visible,'exclusive car control');
+  press('KeyE');check(p.mode==='car'&&t.active===car,'E enters nearby NPC car');check(car.driver.position.x<0,'NPC rides as passenger');check(!app.boatCtl.driven&&p.mode!=='plane','exclusive car control');
   input.keys.add('KeyW');for(let i=0;i<100;i++)t.update(1/60);input.keys.clear();check(car.speed>3,'W accelerates');
   input.keys.add('Space');for(let i=0;i<60;i++)t.update(1/60);input.keys.clear();check(Math.abs(car.speed)<.01,'Space brakes');
   press('KeyE');check(p.mode==='walk'&&!t.active,'E gets out');check(safeAt(app.terrainData,app.colliders,p.position.x,p.position.z),'exit has full safe walking footprint');check(car.driver.position.x>0,'NPC returns to driver seat');

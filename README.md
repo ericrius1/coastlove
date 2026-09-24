@@ -28,13 +28,14 @@ The original Santa Barbara harbor and Channel Island discoveries remain: island 
 | Space / C in flight | Rise / descend |
 | Hold Z + two-finger trackpad swipe | Scrub time backward / forward; horizontal and vertical gestures both work |
 | Hold Z + mouse drag | Alternative time scrub |
-| E | Enter / exit a nearby car, talk or interact |
+| E | Enter / exit the nearest car, boat or parked plane; in flight, land nearby and get out. Talk when no vehicle is nearby. |
 | WASD / Space in a car | Accelerate/reverse, steer / brake; Shift for extra speed |
-| J | Coastal chart, instant visits, stories, region filter and picture quality |
-| Chart scroll / drag / double-click | Zoom / pan / fit the whole coast |
+| M | Full-screen interactive map: pan, zoom, search destinations, select a marker and Teleport here; M or Esc closes |
+| J | Field notes, stories, region filter and picture quality |
+| Map scroll or pinch / drag / arrows | Zoom / pan / keyboard pan; + and − also zoom. Whole coast resets the view. |
 | V / T / R / I / F1 | Boat camera / day cycle / fishing rod / inventory / full controls |
 
-Flight uses the San Francisco project's input response with the coordinate sign corrected for this engine. Turning and pitching are rate-limited, the chase camera follows smoothly, and terrain and rooftop clearance help avoid crashes. With a level nose, releasing the altitude keys holds height. Press 3 for a safe walking arrival, or J to visit another part of California instantly.
+Flight uses the San Francisco project's input response with the coordinate sign corrected for this engine. Turning and pitching are rate-limited, the chase camera follows smoothly, and terrain and rooftop clearance help avoid crashes. With a level nose, releasing the altitude keys holds height. Press 3 for a safe walking arrival, or M to visit another part of California instantly. E performs a nearby assisted landing and leaves Marigold parked; press E beside it to fly again. Leaving a boat steps onto a nearby shore or into the water.
 
 ## Traffic and birds
 
@@ -64,6 +65,7 @@ npm test
 npm run test:exploration
 npm run test:california
 npm run test:traffic
+npm run test:controls
 npm run build
 ```
 

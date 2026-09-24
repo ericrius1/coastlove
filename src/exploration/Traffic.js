@@ -60,7 +60,7 @@ export class Traffic {
   const app=this.app,p=app.player;
   if(p.mode!=='walk'||app.freeCam||p.position.distanceTo(car.position)>5.5)return false;
   app.game.cancelLine(true);app.game.rod.equip(false);app.game.hud?.closeStand();app.game.hud?.toggleInventory(false);
-  app.exploration.closeDialogue();app.exploration.toggleJournal(false);app.exploration.plane.group.visible=false;
+  app.exploration.closeDialogue();app.exploration.toggleJournal(false);app.exploration.plane.group.visible=app.exploration.plane.parked;
   if(app.boatCtl.driven)app.audio?.engineStop();app.boatCtl.driven=false;app.boatCtl.throttle=app.boatCtl.throttleTarget=0;
   this.active=car;car.rejoin=null;car.wait=0;this.cameraReady=false;this.orbit=0;this.orbitPitch=.32;
   car.driver.position.x=-.4;car.playerDriver.visible=true; // the local driver rides along while you take the wheel

@@ -8,7 +8,8 @@
     "test": "node test/game-logic.mjs && node test/engine-smoke.mjs",
     "test:exploration": "node test/exploration.mjs",
     "test:california": "node test/california.mjs && node test/view-distance.mjs && node test/statewide.mjs",
-    "test:traffic": "node test/traffic.mjs"
+    "test:traffic": "node test/traffic.mjs",
+    "test:controls": "node test/controls.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.0",

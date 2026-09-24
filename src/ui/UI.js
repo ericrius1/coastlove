@@ -2139,9 +2139,9 @@ export class UI {
 				<div class="tw-help-grid">
 					<section>
 						<h3>Move</h3>
-						${ row( k( 'E' ), 'Enter / exit nearby car<small>NPCs take over when you leave</small>' ) }
+						${ row( k( 'E' ), 'Enter / exit car, boat or plane<small>Plane: assisted landing · cars: NPCs resume driving</small>' ) }
 						${ row( k( '1', '2', '3' ), 'Boat / seaplane / safely ashore<small>Number row or numpad</small>' ) }
-						${ row( k( 'J' ), 'Coastal chart, destinations and field notes' ) }
+						${ row( k( 'J' ), 'Field notes, stories and picture quality' ) }
 						${ row( k( 'Z' ), 'Hold + two-finger trackpad swipe to scrub time' ) }
 						${ row( wasd, 'Move · car / plane: speed and steering' ) }
 						${ row( mouse, 'Look around · plane: turn and pitch<small>Click the view to capture your trackpad</small>' ) }
@@ -2152,7 +2152,7 @@ export class UI {
 					</section>
 					<section>
 						<h3>Interact</h3>
-						${ row( k( 'E' ), 'Interact<small>Board, helm, step ashore, trade</small>' ) }
+						${ row( k( 'E' ), 'Interact<small>Enter / exit vehicles, talk, trade</small>' ) }
 						${ row( k( 'V' ), 'Boat camera<small>1st / 3rd person</small>' ) }
 						${ row( k( 'R' ), 'Fishing rod<small>Take out / put away</small>' ) }
 						${ row( k( 'LMB' ), 'Cast, strike, reel<small>Hold to wind up / reel</small>' ) }
@@ -2161,7 +2161,7 @@ export class UI {
 						${ row( k( 'F' ), 'Free camera' ) }
 						${ row( k( 'T' ), 'Pause time' ) }
 						${ row( k( 'L' ), 'Flashlight' ) }
-						${ row( k( 'M' ), 'Mute' ) }
+						${ row( k( 'M' ), 'Full-screen map<small>Pan, zoom, choose a destination and teleport</small>' ) }
 					</section>
 					<section>
 						<h3>Interface</h3>
@@ -2200,7 +2200,7 @@ export class UI {
 					<span><kbd class="tw-kbd-ico">${ icon( 'mouse' ) }</kbd>Look</span>
 					<span><kbd>E</kbd>Interact</span>
 					<span><kbd>1</kbd>Boat <kbd>2</kbd>Plane <kbd>3</kbd>On foot</span>
-					<span><kbd>J</kbd>Coastal chart</span>
+					<span><kbd>M</kbd>Map & fast travel</span><span><kbd>J</kbd>Field notes</span>
 					<span><kbd>Z</kbd> + trackpad · scrub time</span><span><kbd>F1</kbd>All controls</span>
 				</div>
 			</div>`;

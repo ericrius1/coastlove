@@ -7,7 +7,7 @@ export function checkCalifornia(app){
  const press=code=>{window.dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true}));e.beforeUpdate();window.dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));input.endFrame();};
  try{
   for(const [code,mode]of[['Digit2','plane'],['Digit1','boat'],['Digit3','walk'],['Numpad2','plane'],['Numpad3','walk']]){
-   press(code);check(p.mode===mode,`${code} selects ${mode}`);check(app.boatCtl.driven===(mode==='boat'),'vehicle ownership remains exclusive');check(e.plane.group.visible===(mode==='plane'),'plane visible only while flying');
+   press(code);check(p.mode===mode,`${code} selects ${mode}`);check(app.boatCtl.driven===(mode==='boat'),'vehicle ownership remains exclusive');check(e.plane.group.visible===(mode==='plane'||e.plane.parked),'plane visible while flying or parked');
   }
   for(const place of PLACES){
    e.visit(place);check(p.mode===(place.water?'boat':'walk'),`visit ${place.label}`);

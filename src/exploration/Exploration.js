@@ -1,5 +1,7 @@
 import { Euler, Vector3 } from '../engine/index.js';
 import { Traffic } from './Traffic.js';
+import { VehicleInteractions } from './VehicleInteractions.js';
+import { TravelMap } from '../california/TravelMap.js';
 import { Seaplane } from './Seaplane.js';
 import { IslandLife } from './IslandLife.js';
 import { CALIFORNIA_STORIES as STORIES, PLACES } from '../california/Region.js';
@@ -17,6 +19,7 @@ export class Exploration {
 		this.landmarks = new Landmarks(app);
 		this.life = new IslandLife( app.scene, app.terrainData, app.colliders, { loadCharacters: true, california: true } );
 		this.traffic = new Traffic(app);
+		this.vehicles = new VehicleInteractions(this);
 		this.read = new Set(); this.seen = new Set(); this.found = new Set();
 		try {
 			const data = JSON.parse( localStorage.getItem( SAVE ) || '{}' );
@@ -28,17 +31,19 @@ export class Exploration {
 		this.dialogue = null; this.page = 0; this.journalOpen = false;
 		this.ui = document.createElement( 'section' );
 		this.ui.className = 'exp-ui';
-  this.ui.innerHTML = `<aside class="exp-card"><div class="exp-eyebrow">CALIFORNIA · THE PACIFIC COAST</div><h1>coastlove<span>Take the long way home.</span></h1><div class="exp-vehicles" aria-label="Travel modes"><button data-mode="boat"><kbd>1</kbd> Boat</button><button data-mode="plane"><kbd>2</kbd> Plane</button><button data-mode="walk"><kbd>3</kbd> Walk</button></div><p class="exp-controls"></p><button class="exp-car-stop">Coastal drive · find a car <kbd>E</kbd></button><div class="exp-divider"></div><p class="exp-objective"></p><div class="exp-progress"></div><button class="exp-journal-button">Coastal chart & field notes <kbd>J</kbd></button></aside><div class="exp-clock"><span class="exp-clock-time">16:12</span><span><kbd>Z</kbd> + trackpad · travel through time</span><input aria-label="Time of day" type="range" min="0" max="23.99" step=".01"></div><div class="exp-near" role="status"></div><section class="exp-dialog" hidden role="dialog" aria-label="Island conversation"><div class="exp-eyebrow exp-role"></div><h2 class="exp-name"></h2><p class="exp-story"></p><div class="exp-dialog-footer"><span class="exp-page"></span><button class="exp-next">Continue <kbd>E</kbd></button><button class="exp-close">Leave <kbd>Esc</kbd></button></div></section><section class="exp-journal" hidden role="dialog" aria-label="Coastal chart and field notes"><div class="exp-eyebrow">COASTLOVE · A CALIFORNIA FIELD GUIDE</div><h2>Somewhere beyond the shore.</h2><p>Border Field to the Oregon line, ten miles inland, the Bay & the islands. Real coastlines, shorter journeys, stories of our own.</p><div class="exp-chart-layout"><div><canvas class="exp-map" width="640" height="640" aria-label="Coastal map. Choose a destination from the list for accessible navigation."></canvas><p class="exp-map-caption">Scroll to zoom · drag to pan · double-click to fit. Choose Visit for an easy arrival.</p><div class="exp-quality"><label>Picture quality <select aria-label="Picture quality"><option value="1">Full detail · long views</option><option value=".8">Air · same draw distance</option><option value=".65">Smooth · same draw distance</option></select></label></div></div><div><label class="exp-filter-label">Explore a region <select class="exp-region-filter" aria-label="Explore a region"><option value="all">Entire California coast</option><option value="south">Southern California</option><option value="central">Central coast</option><option value="bay">San Francisco Bay & coast</option><option value="north">Redwood & north coast</option><option value="islands">Channel Islands</option></select></label><div class="exp-entries"></div></div></div><button class="exp-journal-close">Back to the coast <kbd>J</kbd></button></section>`;
+  this.ui.innerHTML = `<aside class="exp-card"><div class="exp-eyebrow">CALIFORNIA · THE PACIFIC COAST</div><h1>coastlove<span>Take the long way home.</span></h1><div class="exp-vehicles" aria-label="Travel modes"><button data-mode="boat"><kbd>1</kbd> Boat</button><button data-mode="plane"><kbd>2</kbd> Plane</button><button data-mode="walk"><kbd>3</kbd> Walk</button></div><p class="exp-controls"></p><button class="exp-car-stop">Coastal drive · find a car <kbd>E</kbd></button><div class="exp-divider"></div><p class="exp-objective"></p><div class="exp-progress"></div><button class="exp-map-button">Map & fast travel <kbd>M</kbd></button><button class="exp-journal-button">Field notes <kbd>J</kbd></button></aside><div class="exp-clock"><span class="exp-clock-time">16:12</span><span><kbd>Z</kbd> + trackpad · travel through time</span><input aria-label="Time of day" type="range" min="0" max="23.99" step=".01"></div><div class="exp-near" role="status"></div><section class="exp-dialog" hidden role="dialog" aria-label="Island conversation"><div class="exp-eyebrow exp-role"></div><h2 class="exp-name"></h2><p class="exp-story"></p><div class="exp-dialog-footer"><span class="exp-page"></span><button class="exp-next">Continue <kbd>E</kbd></button><button class="exp-close">Leave <kbd>Esc</kbd></button></div></section><section class="exp-journal" hidden role="dialog" aria-label="Coastal chart and field notes"><div class="exp-eyebrow">COASTLOVE · A CALIFORNIA FIELD GUIDE</div><h2>Somewhere beyond the shore.</h2><p>Border Field to the Oregon line, ten miles inland, the Bay & the islands. Real coastlines, shorter journeys, stories of our own.</p><div class="exp-chart-layout"><div><canvas class="exp-map" width="640" height="640" aria-label="Coastal map. Choose a destination from the list for accessible navigation."></canvas><p class="exp-map-caption">Scroll to zoom · drag to pan · double-click to fit. Choose Visit for an easy arrival.</p><div class="exp-quality"><label>Picture quality <select aria-label="Picture quality"><option value="1">Full detail · long views</option><option value=".8">Air · same draw distance</option><option value=".65">Smooth · same draw distance</option></select></label></div></div><div><label class="exp-filter-label">Explore a region <select class="exp-region-filter" aria-label="Explore a region"><option value="all">Entire California coast</option><option value="south">Southern California</option><option value="central">Central coast</option><option value="bay">San Francisco Bay & coast</option><option value="north">Redwood & north coast</option><option value="islands">Channel Islands</option></select></label><div class="exp-entries"></div></div></div><button class="exp-journal-close">Back to the coast <kbd>J</kbd></button></section>`;
 		document.body.append( this.ui );
 		this.find = selector => this.ui.querySelector( selector );
 		this.ui.querySelectorAll( '[data-mode]' ).forEach( button => button.onclick = () => this.switchMode( button.dataset.mode ) );
 		this.find('.exp-region-filter').onchange=()=>this.refresh();
 		this.find('.exp-car-stop').onclick=()=>this.visitCarStop();
+		this.find('.exp-map-button').onclick=()=>this.toggleMap();
 		this.find( '.exp-journal-button' ).onclick = () => this.toggleJournal();
 		this.find( '.exp-journal-close' ).onclick = () => this.toggleJournal( false );
 		this.find( '.exp-next' ).onclick = () => this.advance();
 		this.find( '.exp-close' ).onclick = () => this.closeDialogue();
   this.chart = new CoastalChart(this.find('.exp-map'),app.terrainData,place=>{this.target=place;this.refresh();});
+  this.map = new TravelMap(this);
   this.find('.exp-clock input').oninput=e=>{app.settings.timeSpeed=0;app.settings.timeOfDay=Number(e.target.value);};
   this.find('.exp-quality select').onchange=e=>app.setRenderScale(Number(e.target.value));
   this.refresh();
@@ -88,7 +93,16 @@ export class Exploration {
   this.target=place;app.game.toast(place.label+' · take a moment to look around');
  }
 
+ toggleMap(open = !this.map.open){
+  if(open){
+   this.closeDialogue();this.toggleJournal(false);this.app.game.hud?.closeStand();this.app.game.hud?.toggleInventory(false);
+   document.exitPointerLock?.();this.app.input.mouseDown=this.app.input.rightDown=false;this.app.input.consumeLook();this.app.input.consumeWheel();
+  }
+  this.map.show(open);
+ }
+
  toggleJournal( open = ! this.journalOpen ) {
+  if(open)this.toggleMap(false);
 		this.closeDialogue(); this.journalOpen = open;
 		if ( open ) { this.app.game.hud?.closeStand(); this.app.game.hud?.toggleInventory( false ); }
 		this.find( '.exp-journal' ).hidden = ! open;
@@ -122,14 +136,14 @@ export class Exploration {
 		const destination = mode === 'plane' ? null : findSafeSpot( app.terrainData, app.colliders, from.x, from.z, mode === 'boat' );
 		if ( mode !== 'plane' && ! destination ) { app.game.toast( 'No safe arrival nearby. Fly closer to the island first.' ); return; }
 		this.traffic.release();
-		this.closeDialogue(); this.toggleJournal( false );
+		this.closeDialogue(); this.toggleJournal( false ); this.toggleMap(false);
 		app.game.cancelLine( true ); app.game.rod.equip( false );
 		app.game.hud?.closeStand(); app.game.hud?.toggleInventory( false );
 		app.freeCam = false;
 		if ( b.driven ) app.audio?.engineStop();
 		b.driven = false; b.throttle = 0; b.throttleTarget = 0;
 		p.velocity.set( 0, 0, 0 ); p.busy = false; p._camY = null;
-		this.plane.group.visible = mode === 'plane';
+		this.plane.group.visible = mode === 'plane' || this.plane.parked;
 		if ( mode === 'plane' ) {
 			const e = new Euler().setFromQuaternion( app.camera.quaternion, 'YXZ' );
 			this.plane.launch( from, e.y + Math.PI );
@@ -162,21 +176,18 @@ export class Exploration {
 		const delta=input.consumeTimeScrub();
 		if(delta && !this.app.ui?.ui?._start){this.app.settings.timeSpeed=0;this.app.settings.timeOfDay=wrapHour(this.app.settings.timeOfDay+delta);if(Math.abs(delta)>.15)this.app.clouds?.resetHistory?.();}
 		if(input.down('KeyZ')){input.consumeLook();input.consumeWheel();}
-		if ( input.hit( 'Escape' ) ) { this.closeDialogue(); this.toggleJournal( false ); }
+		if ( input.hit( 'Escape' ) ) { this.closeDialogue(); this.toggleJournal( false ); this.toggleMap(false); }
 		if ( this.dialogue && input.hit( 'KeyE' ) ) { this.advance(); input.pressed.delete( 'KeyE' ); }
+		if ( input.hit( 'KeyM' ) && !this.app.ui?.ui?._start && !this.app.ui?.ui?._help && !this.app.ui?.ui?._photo && !this.app.game.guide?.open ) this.toggleMap();
 		if ( input.hit( 'KeyJ' ) ) this.toggleJournal();
+  if(this.map.open)return;
 		for ( const [ key, mode ] of [ [ 1, 'boat' ], [ 2, 'plane' ], [ 3, 'walk' ] ] ) if ( input.hit( `Digit${ key }` ) || input.hit( `Numpad${ key }` ) ) this.switchMode( mode );
-  if(input.hit('KeyE')&&!this.paused&&!this.app.freeCam){
-   if(this.traffic.active){this.traffic.exit();input.pressed.delete('KeyE');}
-   else if(this.canApproachCar&&!this.life.residents.some(r=>r.vendor.inRange(this.app.player.position))){
-    const car=this.traffic.nearest(this.app.player.position);if(car&&this.traffic.enter(car))input.pressed.delete('KeyE');
-   }
-  }
+  if(input.hit('KeyE')&&this.vehicles.interact())input.pressed.delete('KeyE');
 	}
 
 	discover(place){if(this.found.has(place.id))return;this.found.add(place.id);this.save();this.app.game.toast('Discovered · '+place.label);}
 
-	get paused() { return !! ( this.dialogue || this.journalOpen ); }
+	get paused() { return !! ( this.dialogue || this.journalOpen || this.map?.open ); }
 
 	update( dt ) {
 		const app = this.app, p = app.player;
@@ -187,23 +198,24 @@ export class Exploration {
 		this.find('.exp-clock').classList.toggle('is-scrubbing',app.input.down('KeyZ'));
 		if(document.activeElement!==this.find('.exp-clock input'))this.find('.exp-clock input').value=app.settings.timeOfDay;
 		if(this.journalOpen){this._chartTime=(this._chartTime||0)+dt;if(this._chartTime>.2){this.chart.draw(p.position,this.target,this.found);this._chartTime=0;}}
+		this.map.update();
 		const hud = app.game.hud;
+		const vehiclePrompt=this.vehicles.prompt();
 		const available = p.mode === 'walk' && ! app.freeCam && ! p.busy && ! app.game.rod.equipped && ! hud?.invOpen && ! hud?.standOpen && ! hud?.catchOpen;
 		const nearby = available ? this.life.residents.find( r => r.vendor.inRange( p.position ) ) : null;
-		if ( nearby && ! this.paused ) {
+		if ( nearby && !vehiclePrompt && ! this.paused ) {
 			p.prompt = { key: 'E', text: `Listen to ${ nearby.name }` };
 			if ( app.input.hit( 'KeyE' ) ) { this.dialogue = nearby; this.page = 0; document.exitPointerLock?.(); this.renderDialogue(); }
 		}
-		const nearCar=this.canApproachCar&&!nearby?this.traffic.nearest(p.position):null;
-  if(nearCar&&!this.paused)p.prompt={key:'E',text:`Drive ${nearCar.name}`};
+		if(vehiclePrompt)p.prompt=vehiclePrompt;
 		if ( this.paused ) p.prompt = null;
-		this.find( '.exp-near' ).textContent = nearby && ! this.paused ? `${ nearby.name } · ${ nearby.role }` : nearCar?`${nearCar.name} · NPC at the wheel`:'';
+		this.find( '.exp-near' ).textContent = vehiclePrompt ? vehiclePrompt.text : nearby && ! this.paused ? `${ nearby.name } · ${ nearby.role }` : '';
 		if ( available ) for ( const a of this.life.animals ) if ( a.group.position.distanceTo( p.position ) < 9 && ! this.seen.has( a.kind ) ) {
 			this.seen.add( a.kind ); this.save(); app.game.toast( `${ a.kind === 'fox' ? 'Island fox' : 'Sea lion' } recorded in your field journal` );
 		}
 		for(const place of PLACES){
    const distance=Math.hypot(place.x-p.position.x,place.z-p.position.z);
-   if(place.kind==='wreck'&&distance<14&&available&&!this.paused&&!nearby){p.prompt={key:'E',text:'Ring the ship’s bell'};if(app.input.hit('KeyE')){this.landmarks.ringBell();this.discover(place);}}
+   if(place.kind==='wreck'&&distance<14&&available&&!this.paused&&!nearby&&!vehiclePrompt){p.prompt={key:'E',text:'Ring the ship’s bell'};if(app.input.hit('KeyE')){this.landmarks.ringBell();this.discover(place);}}
    if(this.found.has(place.id)||this.paused)continue;
    const height=place.water?0:app.terrainData.heightAt(place.x,place.z);
    if(distance<place.radius&&Math.abs(p.position.y-height)<(place.kind==='arch'?28:18)&&place.kind!=='wreck')this.discover(place);
@@ -214,7 +226,7 @@ export class Exploration {
 		const bearing = ( Math.atan2( dx, - dz ) * 180 / Math.PI + 360 ) % 360;
 		this.find( '.exp-objective' ).textContent = `${ this.target.label || this.target.name } · ${ Math.round( Math.hypot( dx, dz ) ) } m ${ compass[ Math.round( bearing / 45 ) % 8 ] }`;
 		this.ui.querySelectorAll( '[data-mode]' ).forEach( button => button.setAttribute( 'aria-pressed', String( button.dataset.mode === p.mode && ! app.freeCam ) ) );
-		this.find( '.exp-controls' ).textContent = p.mode === 'car' ? `W / S accelerate & reverse · A / D steer\n${Math.round(Math.abs(this.traffic.active?.speed||0)*3.6)} km/h · Space brake · E get out` : p.mode === 'plane' ? `Trackpad turns & pitches · A / D also turn\nW / S speed · Shift + W fast cruise · L level\nSpace / C up / down · ${ Math.round( this.plane.speed * 3.6 ) } km/h` : p.mode === 'boat' ? 'WASD steer & throttle · Shift boost\n3 goes ashore · 2 takes flight' : 'WASD walk · Shift run · E enter car / listen\n1 summons boat · 2 takes flight';
+		this.find( '.exp-controls' ).textContent = p.mode === 'car' ? `W / S accelerate & reverse · A / D steer\n${Math.round(Math.abs(this.traffic.active?.speed||0)*3.6)} km/h · Space brake · E get out` : p.mode === 'plane' ? `Trackpad turns & pitches · A / D also turn\nW / S speed · Shift + W fast cruise · L level\nSpace / C up / down · E land & get out` : p.mode === 'boat' ? 'WASD steer & throttle · Shift boost\nE get out · M map & fast travel' : 'WASD walk · Shift run · E enter vehicle / listen\n1 summons boat · 2 takes flight';
 		this.ui.hidden = !! ( app.ui?.ui?._photo || app.ui?.ui?._start || app.ui?.ui?._help || app.game.guide?.open );
 	}
 }

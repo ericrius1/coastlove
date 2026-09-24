@@ -629,12 +629,6 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 
 		}
 
-		if ( this.input.hit( 'KeyM' ) && this.audio ) {
-
-			this.audio.setMuted( ! this.audio.muted );
-			if ( this.ui ) this.ui.ui.toast( this.audio.muted ? 'Sound off' : 'Sound on' );
-
-		}
 		// Reading the journal releases the throttle; keep following a drifting
 		// boat below so the player cannot drive away underneath a frozen camera.
 		if ( this.exploration.paused ) {

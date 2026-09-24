@@ -13,6 +13,8 @@ export class TravelMap {
   exploration.ui.append(this.el);
   this.canvas=this.el.querySelector('canvas');this.ctx=this.canvas.getContext('2d');this.view=new AtlasView(exploration.chart.bounds);
   this.background=this.paperBackground(exploration.chart.background);
+  this.margin=document.createElement('canvas');this.margin.width=this.background.width;this.margin.height=this.background.height;
+  const marginContext=this.margin.getContext('2d');marginContext.filter='blur(18px)';marginContext.drawImage(this.background,-24,-24,this.margin.width+48,this.margin.height+48);
   this.list=this.el.querySelector('.atlas-list');this.search=this.el.querySelector('input');this.detail=this.el.querySelector('.atlas-selection');
   this.buttons=Object.fromEntries([...this.el.querySelectorAll('[data-action]')].map(b=>[b.dataset.action,b]));
   this.buttons.close.onclick=()=>exploration.toggleMap(false);
@@ -106,8 +108,8 @@ export class TravelMap {
   const p=to(b.x,b.z),size=b.size*v.scale,bg=this.background;
   // Bleed the outer terrain colors into wide-screen margins so the edge of
   // the survey never looks like an invented straight coastline.
-  if(p.x>0)ctx.drawImage(bg,0,0,1,bg.height,0,p.y,p.x,size);
-  if(p.x+size<W)ctx.drawImage(bg,bg.width-1,0,1,bg.height,p.x+size,p.y,W-p.x-size,size);
+  if(p.x>0)ctx.drawImage(this.margin,24,0,1,bg.height,0,p.y,p.x,size);
+  if(p.x+size<W)ctx.drawImage(this.margin,bg.width-25,0,1,bg.height,p.x+size,p.y,W-p.x-size,size);
   ctx.drawImage(bg,p.x,p.y,size,size);
   ctx.strokeStyle='#5b695145';ctx.lineWidth=.7;
   for(const ring of COAST_RINGS){ctx.beginPath();ring.forEach(([x,z],i)=>{const p=to(x,z);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();}

@@ -1,3 +1,4 @@
+import { COAST_VIEW } from '../california/ViewQuality.js';
 import * as THREE from '../engine/index.js';
 import { G } from '../core/Globals.js';
 import { VegSite, scatterVegetation, buildGrassMask, RULES } from './vegetation/Scatter.js';
@@ -89,7 +90,7 @@ const SHRUB_NEAR = 45;
 const UNDER_FADE = [ 120, 140 ]; // young palms / bananas
 const BROAD_FADE = [ 85, 105 ]; // monstera / elephant ear / heliconia
 const BANANA_FADE = [ 100, 120 ];
-const CANOPY_FAR = [ 2600, 2800 ];
+const CANOPY_FAR = COAST_VIEW.treeFade;
 
 export class Vegetation {
 
@@ -136,6 +137,7 @@ export class Vegetation {
 		], createCanopyBakeMaterials( this.leafAtlas ) );
 		// (WGSL expressions: see ImpostorAtlas.createMaterial)
 		const impostorMat = this.atlas.createMaterial( {
+			thinFraction: 0, shrubMax: COAST_VIEW.treeFade[1], screenSizeFade: true,
 			isGroup1: ( iDat ) => `${ iDat }.y < 0.0`,
 			variantOf: ( seed, isShrub ) => variantOf( seed, isShrub ),
 			colorOf: ( { seed, cr, leaf, bright, isGroup1 } ) => `${ impostorColor }( ${ seed }, ${ cr }, ${ leaf }, ${ bright }, ${ isGroup1 } )`,

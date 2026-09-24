@@ -1,159 +1,60 @@
-# Tidewater · Windward Isle
+# Coastlove
 
-This local extension adds a larger island, instant boat/seaplane switching, wandering goats and tortoises, four story NPCs, and a saved exploration journal. **[Play guide and extension notes → WINDWARD.md](WINDWARD.md)**
+A standalone California exploration game built on [David Greenheck’s Tidewater](https://github.com/dgreenheck/tidewater). Explore the **Santa Barbara Channel**, from the Santa Barbara–Ventura mainland coast to **San Miguel, Santa Rosa, Santa Cruz, and Anacapa**.
 
-The original Tidewater documentation follows.
+The original Windward Isle project is kept separately and unchanged. Coastlove has its own repository, dependencies, port, and journal save key.
 
-An island fishing game for the browser. Cast from the pier, the beach or your own boat, fight the fish,
-sell your catch to Joe at the fish stand, and spend it on better gear at Marta's chandlery. Around it is a
-real-time tropical island and ocean: swim the reef, drive the boat out to deep water, and watch a humpback
-breach. It runs directly on WebGPU and WGSL with its own small rendering engine, no framework.
-
-**Play it:** https://dgreenheck.github.io/tidewater/
-
-![Fishing off the pier at golden hour](docs/screenshot.jpg)
-
-![The beach in the late afternoon](docs/screenshot-beach.jpg)
-
-## Requirements
-
-- A browser with WebGPU: a recent Chrome, Edge or Safari.
-- A capable GPU. It targets 60 fps at 2560×1267 on an Apple M5 Pro, and dynamic resolution scales
-  the render down on slower machines.
-- The first load compiles several hundred shaders, which can take a minute or more. Later visits are
-  faster because the browser caches them.
-
-## Features
-
-**Fishing**
-- A spinning rod and reel that cast, reel and bend under load, with the bail, rotor and crank animated.
-- Bites that depend on the water (shallows, pier, reef, bay, deep water), depth and time of day, across
-  18 Caribbean species.
-- A line-tension fight: keep the tension in the green band, ease off when the fish runs.
-- A full-screen catch card with the fish's length and weight, a fish log with records, and a cooler.
-- Joe's fish stand buys your catch; Marta's chandlery sells line, reels, rods, a bigger hold, fuel, a rebuilt
-  engine, a fish finder and deck floodlights for night fishing.
-- Walk the deck and the wheelhouse while the boat drifts; the boat burns fuel.
-- A first-play guide, contextual tips and a minimap. Progress is saved in the browser.
-
-**Ocean**
-- Four-cascade FFT ocean (Tessendorf spectra) with foam, whitecaps, wind streaks and swell.
-- Depth-aware breaking waves with peeling shoulders, whitewater, spray and foam lace.
-- A shallow-water simulation for swash running up and down the sand.
-- Boat wake and bow spray, and a whale wake.
-- Caustics on the seabed and in the water, with light shafts.
-- A split underwater/above-water view at the waterline, with water droplets on the lens after surfacing.
-- Refraction of the seabed through the surface, including behind the pier and boats.
-
-**Sky**
-- Physically based atmosphere (Hillaire 2020) with a sun, moon and stars.
-- Volumetric cumulus and wispy cirrus with cloud shadows on the land.
-- Aerial perspective and sea haze.
-- God rays, and a lens flare with occlusion.
-
-**World**
-- An island with a beach, hills, headlands and rocks.
-- A fishing village, a pier, and the vendors' stalls built from Poly Haven scans.
-- Realistic vendor characters (Microsoft Rocketbox) with skinned animation.
-- A coral reef with fish.
-- Palms, bananas, monstera, elephant ear, heliconia, bird of paradise, broadleaf trees, shrubs and dune
-  grass, with impostors and dithered LOD fades.
-- Beach debris.
-- Birds, crabs and marine snow.
-- A humpback whale with an escort of fish, blows, fluke dives and breaches.
-
-**Lighting and post**
-- Cascaded shadows with contact-hardening penumbrae, and screen-space contact shadows.
-- Ground bounce light.
-- GTAO ambient occlusion.
-- Temporal upscaling and sharpening.
-- Bloom, auto exposure and motion blur.
-- Night lighting from lanterns, windows and the boat, plus a flashlight that also works underwater.
-
-**Audio**
-- Positional audio from real CC0 field recordings: surf timed to each breaking wave, wind, birds, the boat
-  engine, footsteps by surface, underwater ambience, whale song, and the rod and reel (casts, the bail,
-  reeling, the drag, line snaps, splashes).
-
-## Controls
-
-| Key | Action |
-|---|---|
-| W A S D | Move |
-| Mouse | Look (click to capture the mouse, Esc to release) |
-| Shift | Sprint / boat boost |
-| Space | Jump / swim up |
-| C | Crouch / dive |
-| E | Interact: board the boat, take or leave the helm, step ashore, trade with the fish buyer or the chandlery |
-| V | Boat camera at the helm (1st / 3rd person) |
-| R | Take out / put away the fishing rod |
-| Left mouse | Hold to wind up, release to cast · strike when a fish takes the bait · hold to reel |
-| Right mouse | Reel an empty line in |
-| I or Tab | Cooler / fish hold and the fish log |
-| F | Free camera |
-| L | Flashlight |
-| T | Pause time |
-| M | Mute |
-| H | Settings panel |
-| P | Photo mode |
-| F1 or ? | All controls |
-
-### Fishing
-
-Walk the deck of the boat while it drifts, or fish from the pier and the beach. Cast, wait for the bobber
-to dip and strike when it's pulled under, then play the fish: keep the line tension in the green band,
-ease off when it runs. Different water holds different fish (the shallows, the pier, the reef, the bay and
-deep water offshore), and some bite best at dawn, dusk or night. Sell your catch to Joe at the fish stand
-on the beach by the pier, and spend it at Marta's chandlery by the boathouse: stronger line, a faster reel,
-a longer rod, a bigger fish hold, a larger fuel tank, a rebuilt engine, a fish finder and deck floodlights for
-night fishing. The boat burns diesel at the helm; fill up at the chandlery. Progress is saved in the browser.
-
-The settings panel (H) exposes the sea state, time of day, sun azimuth, clouds, haze, post-processing and
-more.
-
-## URL options
-
-Add these to the URL, for example `?fly&noAudio`:
-
-| Option | Effect |
-|---|---|
-| `fly` | Start in the free camera |
-| `noAudio` | Disable sound |
-| `noClouds` | Skip the volumetric clouds |
-| `noHaze` | Skip the haze and sun shafts |
-| `noCaustics` | Skip caustics |
-| `noVeg` | Skip vegetation |
-| `noSim` | Skip the swash (shallow-water) simulation |
-
-## Running locally
+## Play
 
 ```sh
+cd /Users/eric/codeprojects/coastlove
 npm install
-npm run dev      # http://127.0.0.1:5189
-npm run build    # static build in dist/
+npm run dev
 ```
 
-Every push to `main` deploys to GitHub Pages through `.github/workflows/deploy.yml`.
+Open **http://127.0.0.1:5190** in Chrome with WebGPU enabled. The first visit compiles shaders. Double-click `Play Coastlove.command` for subsequent launches on this Mac.
 
-## Project layout
+| Control | Action |
+| --- | --- |
+| 1 / 2 / 3 | Boat / seaplane / safe arrival on foot |
+| WASD | Walk, steer the boat, or turn/change speed in flight |
+| Shift | Run or boost |
+| Space / C in flight | Climb / descend |
+| Hold Z + two-finger trackpad swipe | Scrub time backward / forward; horizontal and vertical gestures work |
+| Hold Z + mouse drag | Alternative time scrub |
+| E | Talk, interact, or ring the salvaged bell |
+| J | Coastal chart, quick visits, collected stories, picture quality |
+| V | Boat camera |
+| T | Start / pause the day cycle |
+| R / I | Fishing rod / inventory |
+| F1 | Full controls |
 
-| Folder | Contents |
-|---|---|
-| `src/game/` | The fishing game: rod, bites, the fight, catch card, cooler and log, vendors and stalls, guide, minimap, HUD |
-| `src/engine/` | The rendering engine: math, scene graph and geometry, GPU resources, WGSL shader composition, materials, lighting and shadows |
-| `src/ocean/` | FFT ocean, water surface and material, shore waves, breakers, swash, wake, caustics, underwater lighting |
-| `src/sky/` | Atmosphere, clouds, sky and environment |
-| `src/world/` | Terrain, village, pier, reef, fish, vegetation, rocks, debris, wildlife, whale, boat |
-| `src/post/` | Post chain: AO, underwater composite, haze, TAAU, motion blur, bloom, lens flare, droplets |
-| `src/materials/` | Shared lighting: shadow filtering, bounce light, contact shadows, local lights, LOD fades |
-| `src/player/` | Walking, swimming, the boat and the free camera |
-| `src/audio/` | The sample-based soundscape |
-| `src/ui/` | Settings panel, loading screen and HUD |
-| `tools/` | Scripts that fetch and convert the characters, stall props and fishing sounds |
-| `test/` | Headless engine smoke test and game-logic tests (`npm test`), and HUD / loader dev pages |
+## The coast
 
-## Credits and license
+The 8.192 × 8.192 km world covers **67.1 km²**, about **8× Windward’s overall world area**. Its sampled land is approximately **35.06 km²**, about **21.1× Windward’s 1.662 km²**. Most extra land is the mainland hinterland; the ten detailed stops are concentrated along the coast and islands.
 
-The code is released under the MIT license; see [LICENSE](LICENSE). Third-party assets (CC0 audio from
-Freesound, CC0 scans from Poly Haven, MIT characters from Microsoft Rocketbox, OFL / Apache fonts) and
-technique references are listed in [CREDITS.md](CREDITS.md).
+The shoreline comes from **Natural Earth’s real land polygons**, projected around Santa Barbara Harbor and scaled uniformly **1:18 horizontally**. The actual island arrangement and coastline shapes are retained. Natural Earth is cartographic data at 1:10 million scale, not a 10-metre survey. Elevation is procedural, with interpolated ridges, softened arrival areas, and invented story locations. The village, characters, and embellished landmarks are fictional. This is an artistic playable interpretation, not a surveyed recreation or navigation map.
+
+There are four three-part NPC stories, 20 wandering island foxes, 12 sea lions, ten saved discoveries, a poppy/lupine bluff, wind-shaped grove, sea arch, lighthouse with a rotating night beam, luminous grotto, ship’s bell, and a telescope camp. Tidewater’s ocean, sky, fishing, marine life, sound, and boat physics are retained. The seaplane is an arcade travel mode with terrain clearance; switching to 3 provides the safe walking arrival.
+
+## Performance and validation
+
+Default **Full detail · long views** renders at native resolution, with the original 2048-pixel shadow maps. The chart also offers 80% and 65% internal resolution with temporal reconstruction; all three retain exactly the same draw distances. The height atlas remains 2048², the grass mask is capped at 4 MB, vegetation is limited to 6,500 trees / 14,000 shrubs / 28 harbor palms, and creatures are simulated only nearby. Terrain LOD keeps fine geometry 50% farther out. Trees and landmarks extend across the map to 12 km; foliage fades by projected pixel size, replacing the old 180 m shrub cutoff and 50% distant crown thinning. Clearer coastal haze preserves distant island contrast. Up to 850 additional boulders reuse the original instanced rock renderer along the real shorelines. The original detailed cloud and water shaders remain enabled.
+
+On the development M5 MacBook Air (24 GB), the improved native-resolution build measured about 52–54 fps at the harbor. A six-second cross-channel flight sample measured a median 54 fps, minimum 50 fps, and maximum 56 fps. A nighttime lighthouse view showed approximately 41 fps. These are short local samples, not a guarantee across every view or during shader compilation.
+
+```sh
+npm test
+npm run test:exploration
+npm run test:california
+npm run build
+```
+
+Browser integration checks: after loading the game, run `await (await import('/test/california-browser.mjs')).checkCalifornia(__app)` in development tools. This tests numeric controls, every arrival, time direction and midnight wrapping, night effects, characters, story saving, and completion, then restores journal data.
+
+## Sources and credits
+
+- [Tidewater](https://github.com/dgreenheck/tidewater), MIT — original engine and world systems. Original project notes are in [TIDEWATER.md](TIDEWATER.md). Asset credits and licenses remain with their files.
+- [Natural Earth land polygons](https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/), public domain — real shoreline geometry in `src/california/Coastline.js`.
+- [National Park Service maps](https://www.nps.gov/chis/planyourvisit/maps.htm) — regional reference.
+- Characters reuse the credited Rocketbox assets already distributed with Tidewater.

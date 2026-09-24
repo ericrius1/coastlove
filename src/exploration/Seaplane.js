@@ -6,7 +6,7 @@ export class Seaplane {
 	constructor( scene, terrain ) {
 		this.terrain = terrain;
 		this.group = new Group();
-		this.group.name = 'Windward courier seaplane';
+		this.group.name = 'Coastlove courier seaplane';
 		this.group.visible = false;
 		this.position = this.group.position;
 		this.heading = 0;
@@ -57,7 +57,7 @@ export class Seaplane {
 		this.time += dt;
 		const steer = Number( input.down( 'KeyA' ) ) - Number( input.down( 'KeyD' ) );
 		const boost = input.down( 'ShiftLeft' ) || input.down( 'ShiftRight' );
-		const targetSpeed = boost ? 70 : input.down( 'KeyW' ) ? 48 : input.down( 'KeyS' ) ? 18 : 32;
+		const targetSpeed = boost ? 100 : input.down( 'KeyW' ) ? 65 : input.down( 'KeyS' ) ? 22 : 44;
 		this.speed += ( targetSpeed - this.speed ) * ( 1 - Math.exp( - dt * 1.5 ) );
 		this.heading += steer * dt * 0.65;
 		this.bank += ( - steer * 0.5 - this.bank ) * ( 1 - Math.exp( - dt * 3 ) );

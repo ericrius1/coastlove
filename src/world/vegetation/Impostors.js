@@ -171,7 +171,7 @@ export class ImpostorAtlas {
 	// variantOf( seed, isGroup1 ): variant index within the group;
 	// colorOf( { seed, cr, leaf, bright, isGroup1 } ): linear albedo;
 	// nearDist( isGroup1 ): the near plants' hand-over distance.
-	createMaterial( { isGroup1, variantOf, colorOf, nearDist } ) {
+	createMaterial( { isGroup1, variantOf, colorOf, nearDist, thinFraction = THIN_FRACTION, shrubMax = SHRUB_MAX, screenSizeFade = false } ) {
 
 		const [ g0, g1 ] = this.groups;
 		const cells = this.variantCount * OCT_N;
@@ -191,7 +191,7 @@ export class ImpostorAtlas {
 			textures: { vegImpA: this.rtA.texture, vegImpB: this.rtB.texture },
 			attributes: { iPos: 'vec4f', iDat: 'vec4f' },
 			// crown sway offset (xyz) and the effective scale (w) for the fragment stage
-			varyings: { vImp: 'vec4f', vIPos4: 'vec4f', vIDat: 'vec4f' },
+			varyings: { vImp: 'vec4f', vIPos4: 'vec4f', vIDat: 'vec4f', vCoverage: 'f32' },
 			// ---- vertex: camera-facing quad around the plant centre, swaying with the wind
 			vertex: /* wgsl */`
 	let iPos = v.iPos;
@@ -201,13 +201,17 @@ ${ common }
 	let sy = abs( iDat.y );
 	// LOD window: from the near plant's hand-over distance to the fade-out, else collapsed
 	let d = length( vegParams.camPos - base );
-	let vis = select( 0.0, 1.0, d >= ( ${ nearDist( 'g1Flag' ) } ) * ( 1.0 - VEG_LOD_BAND / 2.0 ) && d < select( draw.params.w, ${ f( SHRUB_MAX ) }, g1Flag ) );
+	let vis = select( 0.0, 1.0, d >= ( ${ nearDist( 'g1Flag' ) } ) * ( 1.0 - VEG_LOD_BAND / 2.0 ) && d < select( draw.params.w, ${ f( shrubMax ) }, g1Flag ) );
 	// far away the forest is thinned out: fewer, proportionally larger crowns (grown about
 	// the base) keep the canopy closed
 	let thin = smoothstep( ${ f( THIN[ 0 ] ) }, ${ f( THIN[ 1 ] ) }, d );
-	let keep = select( 1.0, 0.0, fract( iDat.w * 91.7 ) < thin * ${ f( THIN_FRACTION ) } );
-	let grow = thin * ${ f( 1 / Math.sqrt( 1 - THIN_FRACTION ) - 1 ) } + 1.0;
+	let keep = select( 1.0, 0.0, fract( iDat.w * 91.7 ) < thin * ${ f( thinFraction ) } );
+	let grow = thin * ${ f( 1 / Math.sqrt( 1 - thinFraction ) - 1 ) } + 1.0;
 	let s = iPos.w * grow;
+ // Fade by actual projected size instead of deleting every shrub at 180 m.
+ // Output resolution keeps plant coverage consistent across TAA render scales.
+ let pixels = max(Rh, Hv * sy) * s * abs(frame.proj[1][1]) * frame.outputResolution.y / max(d,1.0);
+ o.vCoverage = ${ screenSizeFade ? 'smoothstep(0.35,1.4,pixels)' : '1.0' } * (1.0-smoothstep(draw.params.z,draw.params.w,d));
 	let C = base + vec3f( 0.0, Cy * s * sy, 0.0 );
 	// sway of the whole crown (matches the near plants' trunk sway amplitude)
 	let w = vegWindStrength();
@@ -282,7 +286,7 @@ ${ common }
 	// cross-fade from the near geometry (incoming level of the band around nearDist)
 	let nd = ${ nearDist( 'g1Flag' ) };
 	let fade = smoothstep( nd * ( 1.0 - VEG_LOD_BAND / 2.0 ), nd * ( 1.0 + VEG_LOD_BAND / 2.0 ), length( vegParams.camPos - base ) );
-	if ( ! ( vA.w > 0.42 && bayer4( in.pixel ) < fade ) ) { discard; }
+	if ( ! ( vA.w > 0.42 && bayer4( in.pixel ) < fade * in.vs.vCoverage ) ) { discard; }
 
 	let cov = max( vA.w, 1e-3 );
 	let bright = vA.x / cov; let leaf = vA.y / cov; let cr = vA.z / cov;

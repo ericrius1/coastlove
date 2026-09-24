@@ -16,7 +16,7 @@ import { lodFadeModule, bandFade } from '../materials/LODFade.js';
 const NEAR_SUBDIV = 3; // 1280 triangles
 const FAR_SUBDIV = 2; // 320 triangles
 const NEAR_DIST = 60; // m (+ 6 x rock size)
-const FAR_DIST = 700; // m (+ 60 x rock size): faded out beyond
+const FAR_DIST = 1800; // m (+ 60 x rock size): faded out beyond
 const BAND = 0.12; // cross-fade band, share of the switch distance (Bayer screen-door, see LODFade)
 
 export class Rocks {
@@ -166,6 +166,7 @@ export class Rocks {
 
 		const blocked = ( x, z, r, h ) => {
 
+			for (const clearing of T.clearings || []) if(Math.hypot(x-clearing.x,z-clearing.z)<clearing.radius+r+3)return true;
 			for ( const f of foot ) if ( Math.hypot( x - f.x, z - f.z ) < f.r + r + 2 ) return true;
 			if ( segDist( walk, x, z ) < r + 4 ) return true;
 			if ( Math.abs( x - pier.x ) < r + 9 && z > pier.zStart - 8 && z < pier.zEnd + 12 ) return true;
@@ -231,6 +232,20 @@ export class Rocks {
 			}
 
 		}
+
+  // Extend the original instanced boulder system along all real island shores.
+  // The fixed budget adds silhouettes and close rock detail without a full-map
+  // dense scan; the existing frustum culling and near/far meshes remain in use.
+  if(T.profile==='california'){
+   let placed=0;
+   for(let i=0;i<50000 && placed<850;i++){
+    const x=(rand()-.5)*7600,z=-700+rand()*4000;
+    const h=T.heightAt(x,z),d=T.coastDistance(x,z).d;
+    if(h<1||h>65||d>0||d< -75)continue;
+    const size=1.8+rand()**2*8;
+    if(add(x,z,size,pick([3,2,2,1]),{sink:.4,tilt:.3,align:.6}))placed++;
+   }
+  }
 
 		// ---- grid scan: shore boulders, talus, hillside outcrops, headland scatter
 		const step = 2.2;

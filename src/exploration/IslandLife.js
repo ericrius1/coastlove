@@ -5,13 +5,35 @@ import { Vendor } from '../game/Vendor.js';
 import { mulberry32 } from '../util/Noise.js';
 import { findSafeSpot, safeAt } from './Navigation.js';
 
+import { CALIFORNIA_STORIES, PLACES } from '../california/Region.js';
 import { STORIES } from './Stories.js';
 export { STORIES } from './Stories.js';
 
 function animalGeometry( kind ) {
 	const p = [];
 	const add = ( geo, color, matrix ) => p.push( prepare( geo, { color, rough: 0.9, matrix } ) );
-	if ( kind === 'goat' ) {
+	if ( kind === 'fox' ) {
+  add(sphere(1,16,10),0x918c78,mat4(0,.48,0,0,0,0,.19,.24,.48));
+  add(sphere(1,12,8),0xb98554,mat4(0,.72,.44,0,0,0,.19,.20,.22));
+  add(sphere(1,12,8),0xd9ccb4,mat4(0,.63,.60,0,0,0,.11,.11,.21));
+  add(sphere(.052,8,6),0x191c19,mat4(0,.65,.77));
+  for(const side of [-1,1]){
+   add(cylinder(0,.11,.30,4),0xac825c,mat4(side*.13,.95,.43,0,0,side*-.16));
+   add(sphere(.028,8,6),0x181a16,mat4(side*.142,.76,.58));
+  }
+  add(sphere(1,12,8),0xa78965,mat4(0,.32,-.63,.5,0,0,.12,.13,.4));
+  add(sphere(1,10,8),0x30362f,mat4(0,.16,-.89,.5,0,0,.10,.11,.15));
+ } else if(kind==='seaLion') {
+  add(sphere(1,18,12),0x776448,mat4(0,.46,0,0,0,0,.47,.40,1.04));
+  add(sphere(1,14,10),0x857154,mat4(0,.85,.68,-.35,0,0,.31,.62,.32));
+  add(sphere(1,12,8),0x9b8564,mat4(0,1.30,.91,0,0,0,.27,.28,.31));
+  add(sphere(1,12,8),0xb29e7a,mat4(0,1.20,1.16,0,0,0,.23,.13,.18));
+  add(sphere(1,8,6),0x222620,mat4(0,1.28,1.30,0,0,0,.11,.06,.05));
+  for(const side of [-1,1]){
+   add(sphere(.035,8,6),0x171b18,mat4(side*.23,1.36,1.06));
+   add(sphere(1,10,6),0x554d3b,mat4(side*.26,.18,-.96,0,side*.5,0,.22,.07,.45));
+  }
+ } else if ( kind === 'goat' ) {
 		add( sphere( 1, 14, 10 ), 0xb3a087, mat4( 0, 0.85, 0, 0, 0, 0, 0.31, 0.4, 0.61 ) );
 		add( sphere( 1, 12, 8 ), 0xd4c4a6, mat4( 0, 1.2, 0.53, - 0.35, 0, 0, 0.2, 0.32, 0.19 ) );
 		add( sphere( 1, 10, 8 ), 0x9b8264, mat4( 0, 1.31, 0.74, 0, 0, 0, 0.15, 0.16, 0.23 ) );
@@ -32,12 +54,12 @@ function animalGeometry( kind ) {
 }
 
 export class IslandLife {
-	constructor( scene, terrain, colliders, { loadCharacters = false } = {} ) {
+	constructor( scene, terrain, colliders, { loadCharacters = false, california = false } = {} ) {
 		this.terrain = terrain;
 		this.colliders = colliders;
 		this.random = mulberry32( 8304 );
 		this.time = 0;
-		this.residents = STORIES.map( ( story ) => {
+		this.residents = (california ? CALIFORNIA_STORIES : STORIES).map( ( story ) => {
 			const position = findSafeSpot( terrain, colliders, story.x, story.z, false, 180 );
 			if ( ! position ) throw new Error( `No safe home for ${ story.name }` );
 			const vendor = new Vendor( { name: story.name, position, radius: 4, look: { shirt: story.color, apron: story.color } } );
@@ -54,15 +76,17 @@ export class IslandLife {
 		} ) ) : Promise.resolve();
 		const material = createPropMaterial( 'islandAnimals' );
 		material.underwaterLighting = 'lite';
-		const geometries = { goat: animalGeometry( 'goat' ), tortoise: animalGeometry( 'tortoise' ) };
+		const geometries = { fox: animalGeometry('fox'), seaLion: animalGeometry('seaLion'), goat: animalGeometry( 'goat' ), tortoise: animalGeometry( 'tortoise' ) };
 		const legGeometries = {
+ fox: prepare(cylinder(.036,.028,.34,8),{color:0x6c4e34,rough:.9}),
+ seaLion: prepare(sphere(1,10,6).scale(.16,.07,.5),{color:0x665640,rough:.8}),
 			goat: prepare( cylinder( 0.065, 0.045, 0.58, 8 ), { color: 0x695b49, rough: 0.95 } ),
 			tortoise: prepare( sphere( 1, 8, 6 ).scale( 0.12, 0.12, 0.24 ), { color: 0x8b8861, rough: 0.95 } )
 		};
 		this.animals = [];
 		for ( let i = 0; i < 32; i ++ ) {
-			const kind = i % 2 ? 'goat' : 'tortoise';
-			const home = this.residents[ i % 4 ].home;
+			const kind = california ? (i<20?'fox':'seaLion') : i % 2 ? 'goat' : 'tortoise';
+			const home = california ? PLACES.find(p=>p.id===(kind==='fox'?'foxes':'rookery')) : this.residents[ i % 4 ].home;
 			const a = this.random() * Math.PI * 2, r = 8 + this.random() * 18;
 			const position = findSafeSpot( terrain, colliders, home.x + Math.sin( a ) * r, home.z + Math.cos( a ) * r, false, 100 );
 			if ( ! position ) continue;
@@ -73,7 +97,7 @@ export class IslandLife {
 			const legs = [];
 			for ( const x of [ - 1, 1 ] ) for ( const z of [ - 1, 1 ] ) {
 				const leg = new Mesh( legGeometries[ kind ], material );
-				leg.position.set( x * ( kind === 'goat' ? 0.21 : 0.37 ), kind === 'goat' ? 0.33 : 0.13, z * 0.36 );
+				leg.position.set( x * ( kind === 'fox' ? .14 : kind === 'goat' ? 0.21 : .44 ), kind === 'fox' ? .19 : kind === 'goat' ? 0.33 : 0.13, z * (kind==='fox'?.27:.36) );
 				group.add( leg ); legs.push( leg );
 			}
 			group.position.copy( position );
@@ -85,7 +109,10 @@ export class IslandLife {
 	update( dt, player, talkingId = null ) {
 		this.time += dt;
 		for ( const r of this.residents ) {
-			const near = r.position.distanceTo( player.position ) < 8;
+			const distance = r.position.distanceTo(player.position);
+			r.vendor.group.visible = distance < 500;
+			if (distance > 500) continue;
+			const near = distance < 8;
 			if ( ! near && talkingId !== r.id ) {
 				const a = this.time * 0.08 + r.phase;
 				const x = r.home.x + Math.sin( a ) * 2, z = r.home.z + Math.cos( a ) * 2;
@@ -110,7 +137,7 @@ export class IslandLife {
 				if ( p.distanceTo( animal.home ) > 14 ) animal.heading = Math.atan2( animal.home.x - p.x, animal.home.z - p.z );
 			}
 			if ( ! animal.walking ) continue;
-			const speed = ( animal.kind === 'goat' ? 0.8 : 0.22 ) * ( flee ? 2.5 : 1 );
+			const speed = ( animal.kind === 'goat' || animal.kind === 'fox' ? 0.8 : 0.22 ) * ( flee ? 2.5 : 1 );
 			const x = p.x + Math.sin( animal.heading ) * speed * dt, z = p.z + Math.cos( animal.heading ) * speed * dt;
 			if ( safeAt( this.terrain, this.colliders, x, z ) ) p.set( x, this.terrain.heightAt( x, z ), z );
 			else { animal.heading += 1.7; animal.timer = 0.5; }

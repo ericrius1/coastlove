@@ -13,8 +13,8 @@ import { CHANDLERY } from './Chandlery.js';
 //   const map = new Minimap( hudEl, game );  map.update( dt );  map.highlight( [ 'joe', 'marta' ] )
 
 const N = 640; // baked canvas size (px)
-const EXT = 2200; // metres covered by the bake
-const X0 = - EXT / 2, Z0 = - 400 - EXT / 2; // world at canvas (0, 0): the island sits north of the bay
+const EXT = 8192; // metres covered by the bake
+const X0 = - EXT / 2, Z0 = - EXT / 2; // world at canvas (0, 0): the island sits north of the bay
 const PPM = N / EXT; // canvas px per metre
 const ROWS_PER_FRAME = 48;
 

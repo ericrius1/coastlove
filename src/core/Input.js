@@ -1,3 +1,4 @@
+import { wheelHours } from '../california/TimeScrub.js';
 // Keyboard / mouse input with pointer lock support.
 export class Input {
 
@@ -8,6 +9,7 @@ export class Input {
 		this.pressed = new Set();
 		this.look = { x: 0, y: 0 };
 		this.wheel = 0;
+		this.timeScrub = 0;
 		this.mouseDown = false;
 		this.rightDown = false;
 		this.locked = false;
@@ -21,8 +23,8 @@ export class Input {
 			if ( [ 'Space', 'ArrowUp', 'ArrowDown', 'Tab' ].includes( e.code ) ) e.preventDefault();
 
 		} );
-		window.addEventListener( 'keyup', ( e ) => this.keys.delete( e.code ) );
-		window.addEventListener( 'blur', () => this.keys.clear() );
+		window.addEventListener( 'keyup', ( e ) => { this.keys.delete( e.code ); if(e.code==='KeyZ')this.scrubReleasedAt=performance.now(); } );
+		window.addEventListener( 'blur', () => { this.keys.clear(); this.pressed.clear(); this.timeScrub = this.wheel = 0; this.look.x = this.look.y = 0; this.mouseDown = this.rightDown = false; } );
 
 		dom.addEventListener( 'mousedown', ( e ) => {
 
@@ -39,6 +41,10 @@ export class Input {
 		dom.addEventListener( 'contextmenu', ( e ) => e.preventDefault() );
 		window.addEventListener( 'mousemove', ( e ) => {
 
+			if ( this.keys.has( 'KeyZ' ) ) {
+				if ( this.mouseDown || this.locked ) this.timeScrub += e.movementX / 180;
+				return;
+			}
 			if ( this.locked || this.mouseDown || this.rightDown ) {
 
 				this.look.x += e.movementX;
@@ -47,9 +53,19 @@ export class Input {
 			}
 
 		} );
+  // Capture time gestures over the HUD as well as the canvas. Briefly absorb
+  // inertial scroll after releasing Z so it cannot become accidental camera zoom.
+  window.addEventListener('wheel',e=>{
+   const held=this.keys.has('KeyZ');
+   if(!held && !(performance.now()-(this.scrubReleasedAt??-Infinity)<250))return;
+   if(e.ctrlKey||e.metaKey)return;
+   if(held)this.timeScrub+=wheelHours(e);
+   e.preventDefault();e.stopImmediatePropagation();
+  },{passive:false,capture:true});
 		dom.addEventListener( 'wheel', ( e ) => {
 
 			this.wheel += Math.sign( e.deltaY );
+
 			e.preventDefault();
 
 		}, { passive: false } );
@@ -88,6 +104,10 @@ export class Input {
 		this.look.y = 0;
 		return l;
 
+	}
+
+	consumeTimeScrub() {
+		const delta = this.timeScrub; this.timeScrub = 0; return delta;
 	}
 
 	consumeWheel() {

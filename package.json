@@ -1,12 +1,13 @@
 {
-  "name": "tidewater",
+  "name": "coastlove",
   "version": "1.0.0",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5189",
+    "dev": "vite --host 127.0.0.1 --port 5190",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node test/game-logic.mjs && node test/engine-smoke.mjs",
-    "test:exploration": "node test/exploration.mjs"
+    "test:exploration": "node test/exploration.mjs",
+    "test:california": "node test/california.mjs && node test/view-distance.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.0",

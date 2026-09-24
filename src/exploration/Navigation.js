@@ -3,6 +3,7 @@ import { Vector3 } from '../engine/index.js';
 // Shared placement rules for arrivals and wandering animals. Check the whole
 // footprint so a boat cannot be summoned through a quay or onto a sandbar.
 export function safeAt( terrain, colliders, x, z, water = false, radius = 0.6 ) {
+	if ( Math.abs( x ) > terrain.size / 2 - 80 || Math.abs( z ) > terrain.size / 2 - 80 ) return false;
 	const h = terrain.heightAt( x, z );
 	if ( water ? h > - 3 : h < 1.5 ) return false;
 	for ( const [ dx, dz ] of [ [ 0, 0 ], [ radius, 0 ], [ - radius, 0 ], [ 0, radius ], [ 0, - radius ] ] ) {
@@ -18,7 +19,7 @@ export function safeAt( terrain, colliders, x, z, water = false, radius = 0.6 ) 
 	return true;
 }
 
-export function findSafeSpot( terrain, colliders, x, z, water = false, maxRadius = 1600 ) {
+export function findSafeSpot( terrain, colliders, x, z, water = false, maxRadius = 4096 ) {
 	const footprint = water ? 5 : 0.6;
 	for ( let r = 0; r <= maxRadius; r += r < 60 ? 4 : 20 ) {
 		const count = Math.max( 1, Math.ceil( Math.PI * 2 * r / Math.max( 8, r * 0.09 ) ) );

@@ -1,3 +1,4 @@
+import { COAST_VIEW } from '../california/ViewQuality.js';
 import { Mesh, Vector2, Vector3 } from '../engine/index.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
 import { CDLOD } from '../core/CDLOD.js';
@@ -30,14 +31,14 @@ export class Terrain {
 	// sunShadow: apply the heightfield sun shadow here (pass false if it is applied to every scene
 	// material through SceneLighting.directModulation). renderer: optional (unused: the sun shadow
 	// map is baked from update() into the frame encoder).
-	constructor( { scene, terrainData, terrainGPU, gridSize = 40, rangeFactor = 2.0, sunShadow = true, renderer = null } ) {
+	constructor( { scene, terrainData, terrainGPU, gridSize = 40, rangeFactor = COAST_VIEW.terrainRange, sunShadow = true, renderer = null } ) {
 
 		this.data = terrainData;
 		this.gpu = terrainGPU;
 		const half = terrainData.size / 2;
 
 		this.lod = new CDLOD( {
-			gridSize, leafSize: 8, levels: 9,
+			gridSize, leafSize: 8, levels: Math.ceil( Math.log2( terrainData.size / 8 ) ) + 1,
 			heightBounds: ( x0, z0, x1, z1 ) => terrainData.boundsFor( x0, z0, x1, z1 ),
 			center: { x: - half, z: - half, size: terrainData.size },
 			rangeFactor,
@@ -105,6 +106,7 @@ export class Terrain {
 
 		modules.push( new ShaderModule( { name: 'terrainMaterial', deps: [ this.gpu.module, terrainShadingModule() ], code: TERRAIN_MATERIAL_WGSL } ) );
 		mat.modules = modules;
+		mat.defines.CALIFORNIA = 1;
 		mat.defines.HAS_WETNESS = this.wetness ? 1 : 0;
 		mat.defines.MATERIAL_SUN_MODULATION = this.sunShadow ? 1 : 0;
 		mat.surface = TERRAIN_SURFACE;
@@ -332,7 +334,7 @@ const TERRAIN_SURFACE = /* wgsl */`
 			* ( 1.0 - smoothstep( 50.0, 220.0, camDist ) * 0.85 );
 		// forest on the higher / steeper ground and in the gullies, tall-grass meadow on the valley
 		// floor and around the village (same classification as the vegetation's land cover)
-		let jungleW = sat( smoothstep( 9.0, 24.0, h + ( mcr - 0.5 ) * 18.0 ) + smoothstep( 0.18, 0.36, slope ) + gully * 0.6 );
+		let jungleW = smoothstep( 0.58, 0.82, mcr ) * 0.62;
 		// landslide scars: raw red-brown laterite in streaks down steep slopes, rare
 		let lateriteW = smoothstep( 0.62, 0.74, scar + ( macroB - 0.5 ) * 0.3 ) * smoothstep( 0.3, 0.42, slope )
 			* smoothstep( 0.52, 0.66, mcr ) * notRock * 0.85;
@@ -470,6 +472,7 @@ const TERRAIN_SURFACE = /* wgsl */`
 			canopy = canopy * ( ( streak - 0.5 ) * 0.5 * smoothstep( 0.3, 0.5, slope ) + 1.0 );
 			jungle = mix( jungle, canopy, canopyW );
 		}
+		lawn = mix( lawn, mix( ${ S( 0.47, 0.43, 0.23 ) }, ${ S( 0.62, 0.55, 0.32 ) }, mcr ), 0.48 );
 		var ground = mix( lawn, jungle, jungleW );
 		// around the bare rock: dark humus, stones and moss, with the surrounding plants creeping
 		// in (a soft, noisy band; no speckle)

@@ -1,3 +1,4 @@
+import { scatterCalifornia, californiaGrass } from '../../california/Vegetation.js';
 import * as THREE from '../../engine/index.js';
 import { Noise2D, mulberry32, smoothstep, clamp } from '../../util/Noise.js';
 import { WORLD } from '../WorldLayout.js';
@@ -332,6 +333,7 @@ function headland( x, z, c, sandOk = false ) {
 }
 
 export function scatterVegetation( site, seed = 99 ) {
+	if ( site.terrain.profile === 'california' ) return scatterCalifornia( site, seed );
 
 	_site = site;
 
@@ -647,6 +649,7 @@ export function scatterVegetation( site, seed = 99 ) {
 //   R dune grass, G tall meadow grass, B sea oats, A beach creeper. Returns { data, res }.
 export const GRASS_MASK_TEXEL = 2;
 export function buildGrassMask( site ) {
+	if ( site.terrain.profile === 'california' ) return californiaGrass( site );
 
 	const t = site.terrain;
 	const res = Math.round( t.size / GRASS_MASK_TEXEL );

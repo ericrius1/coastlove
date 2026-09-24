@@ -1,4 +1,4 @@
-import { STORIES } from './exploration/Stories.js';
+import { COAST_VIEW } from './california/ViewQuality.js';
 import { Exploration } from './exploration/Exploration.js';
 import { Vector3, Euler, Color, MathUtils, Mesh } from './engine/index.js';
 import { GPU } from './engine/gpu/GPU.js';
@@ -20,7 +20,7 @@ import { Clouds } from './sky/Clouds.js';
 import { SkyProClouds } from './sky/SkyProClouds.js';
 import { Environment } from './sky/Environment.js';
 
-import { TerrainData } from './world/TerrainData.js';
+import { CaliforniaTerrain } from './california/CaliforniaTerrain.js';
 import { TerrainGPU } from './world/TerrainGPU.js';
 import { Terrain } from './world/Terrain.js';
 import { computeShoreField } from './world/ShoreField.js';
@@ -80,7 +80,7 @@ export class App {
 			sunAzimuth: 0, // degrees: turns the sun's daily path about the vertical
 			timeSpeed: 0, // hours per real second
 			exposure: 0.55,
-			renderScale: 1, // internal resolution (the temporal upscaler reconstructs the output), Performance tab
+			renderScale: COAST_VIEW.renderScale, // internal resolution (the temporal upscaler reconstructs the output), Performance tab
 		};
 		this.qs = new URLSearchParams( location.search );
 
@@ -130,15 +130,14 @@ export class App {
 		// contact-hardening filter sized by the sun's disc on the near cascade. Each cascade's depth range
 		// is its light margin (200 m) + its extent, which keeps the depth bias small in metres.
 		// Shadows come from the opaque and the late (transparent-pass) layers.
-		this.csm = this.shadows = new SunShadows( { size: 2048, splits: [ 10, 60, 400 ], lightMargin: 200, normalBias: [ 0.015, 0.06, 0.3 ], bias: 0.00002 } );
+		this.csm = this.shadows = new SunShadows( { size: COAST_VIEW.shadowSize, splits: [ 10, 60, 400 ], lightMargin: 200, normalBias: [ 0.015, 0.06, 0.3 ], bias: 0.00002 } );
 		this.shadows.layerMask = ( 1 << LAYERS.OPAQUE ) | ( 1 << LAYERS.TRANSPARENT );
 
 		this.environment = new Environment( renderer, scene, this.sky );
 
 		// ---------------------------------------------------------------- island
-		await progress( 0.06, 'Shaping the island…' );
-		this.terrainData = new TerrainData( 19, { landScale: Math.SQRT2 } );
-		this.terrainData.clearings = STORIES.map( ( { x, z } ) => ( { x, z, radius: 34 } ) );
+		await progress( 0.06, 'Shaping the California coast…' );
+		this.terrainData = new CaliforniaTerrain();
 		this.colliders = new Colliders();
 		// the village flattens building pads into the heightmap: build it before any terrain
 		// data is derived (shore field, GPU textures, meshes)
@@ -146,7 +145,7 @@ export class App {
 		this.village = new Village( { scene, terrain: this.terrainData, colliders: this.colliders } );
 		if ( ! qs.has( 'noVeg' ) ) {
 
-			await progress( 0.14, 'Planting the island…' );
+			await progress( 0.14, 'Planting coastal groves…' );
 			this.vegetation = new Vegetation( { scene, terrain: this.terrainData, village: this.village } );
 			useStaticVelocity( this.vegetation.group );
 
@@ -338,6 +337,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 			depthTexture: this.sceneRenderer.sceneRT.depthTexture, underwater: this.underwater, atmosphere: this.atmosphere,
 			sky: this.sky, clouds: this.clouds, terrain: this.terrainGPU, csm: this.csm,
 		} );
+		if (this.haze) this.haze.density.value = COAST_VIEW.hazeDensity;
 		this.post = new PostFX( renderer, { sceneRenderer: this.sceneRenderer, camera, underwater: this.underwater, clouds: this.clouds, sunDir: this.atmosphere.sunDir, haze: this.haze } );
 		G.exposure.value = this.settings.exposure;
 		if ( qs.has( 'scale' ) ) this.settings.renderScale = Number( qs.get( 'scale' ) ) || 1;
@@ -613,7 +613,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		this.updateFPS( dt );
 		G.dt.value = dt;
 		G.time.value += dt;
-		if ( s.timeSpeed !== 0 ) s.timeOfDay = ( s.timeOfDay + dt * s.timeSpeed + 24 ) % 24;
+		if ( s.timeSpeed !== 0 && ! this.input.down( 'KeyZ' ) ) s.timeOfDay = ( s.timeOfDay + dt * s.timeSpeed + 24 ) % 24;
 
 		// ---- player / boat (boat physics first so the cameras follow this frame's pose)
 		this.exploration.beforeUpdate();

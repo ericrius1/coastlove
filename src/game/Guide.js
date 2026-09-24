@@ -7,10 +7,10 @@ import { CHANDLERY } from './Chandlery.js';
 //    markers pulse on the minimap). Enter / Space / click: next, Esc: skip. Replay from the help (F1).
 //  - one-time tips the first time something happens (rod out, first nibble, fish on, first catch,
 //    full cooler, next to the boat, at Joe's, at Marta's), in a card above the minimap.
-// Seen state in localStorage ('tidewater.guide'), wrapped in try/catch.
+// Seen state in localStorage ('coastlove.guide'), wrapped in try/catch.
 //   const guide = new Guide( ui, game, minimap );  guide.update( dt );  guide.replay()
 
-const KEY = 'tidewater.guide';
+const KEY = 'coastlove.guide';
 
 const CSS = /* css */`
 .gm-guide { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; opacity: 0; visibility: hidden;
@@ -67,9 +67,9 @@ const row = ( keys, text ) => `<div class="gm-guide-row"><span class="k">${ keys
 
 const CARDS = [
 	{
-		eyebrow: 'Welcome to Windward Isle',
-		title: 'An island of small stories',
-		body: `<p>Meet <b>Inés, Rowan, Sana, and Elias</b>. Follow the bearing and distance on the travel card, then press <b>E</b> nearby to hear their stories. Find goats and tortoises wandering the island. Your <b>J</b> field journal remembers every discovery.</p>
+		eyebrow: 'Welcome to Coastlove',
+		title: 'The coast is calling',
+		body: `<p>Meet <b>Inés, Rowan, Sana, and Elias</b>. Follow the bearing and distance on the travel card, then press <b>E</b> nearby to hear their stories. Find island foxes and sea lions wandering the island. Your <b>J</b> coastal chart remembers every discovery and offers easy visits. Hold <b>Z</b> and swipe your trackpad with two fingers to travel through the hours. The real Santa Barbara Channel coastline is compressed for play, with imagined paths and people.</p>
 			<p>Press <b>1</b> for the boat, <b>2</b> for Marigold the seaplane, or <b>3</b> to arrive safely on land. In flight: <b>A/D</b> turn, <b>W/S</b> change speed, <b>Space/C</b> climb and descend. Fishing, Joe’s market and Marta’s upgrades are still here whenever you want them.</p>`,
 	},
 	{

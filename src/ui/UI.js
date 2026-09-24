@@ -2140,7 +2140,8 @@ export class UI {
 					<section>
 						<h3>Move</h3>
 						${ row( k( '1', '2', '3' ), 'Boat / seaplane / safely ashore<small>Number row or numpad</small>' ) }
-						${ row( k( 'J' ), 'Field journal and story compass' ) }
+						${ row( k( 'J' ), 'Coastal chart, destinations and field notes' ) }
+						${ row( k( 'Z' ), 'Hold + two-finger trackpad swipe to scrub time' ) }
 						${ row( wasd, 'Move · plane: speed and turning' ) }
 						${ row( mouse, 'Look around<small>Click to capture</small>' ) }
 						${ row( k( 'Shift' ), 'Sprint, boat boost' ) }
@@ -2191,15 +2192,15 @@ export class UI {
 		el.innerHTML = `
 			<div class="tw-start-inner">
 				${ brandMark( 'tw-start-mark' ) }
-				<div class="tw-start-title">WINDWARD ISLE</div>
+				<div class="tw-start-title">COASTLOVE</div>
 				<button type="button" class="tw-start-cta"><span class="tw-start-pulse" aria-hidden="true"></span>${ icon( 'mouse' ) }<span>Click to explore</span></button>
 				<div class="tw-start-keys">
 					<span><span class="tw-wasd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>Move</span>
 					<span><kbd class="tw-kbd-ico">${ icon( 'mouse' ) }</kbd>Look</span>
 					<span><kbd>E</kbd>Interact</span>
 					<span><kbd>1</kbd>Boat <kbd>2</kbd>Plane <kbd>3</kbd>On foot</span>
-					<span><kbd>J</kbd>Field journal</span>
-					<span><kbd>F1</kbd>All controls</span>
+					<span><kbd>J</kbd>Coastal chart</span>
+					<span><kbd>Z</kbd> + trackpad · scrub time</span><span><kbd>F1</kbd>All controls</span>
 				</div>
 			</div>`;
 		this.root.append( el );

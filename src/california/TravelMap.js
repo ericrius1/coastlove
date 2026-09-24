@@ -2,6 +2,7 @@ import { PLACES } from './Region.js';
 import { GEO } from './Geography.js';
 import { COAST_RINGS } from './Coastline.js';
 import { AtlasView } from './AtlasView.js';
+import { mapPin } from './MapPin.js';
 
 const REGIONS={south:'Southern California',central:'Central coast',bay:'Bay Area',north:'North coast',islands:'Channel Islands'};
 export class TravelMap {
@@ -9,9 +10,12 @@ export class TravelMap {
   this.e=exploration;this.open=false;this.selected=null;this.hover=null;this.dirty=true;
   this.el=document.createElement('section');this.el.className='exp-atlas';this.el.hidden=true;
   this.el.setAttribute('role','dialog');this.el.setAttribute('aria-modal','true');this.el.setAttribute('aria-label','California travel map');
-  this.el.innerHTML=`<header class="atlas-head"><div><span class="atlas-kicker">COASTLOVE · A PACIFIC ATLAS</span><h2>The California coast</h2></div><div class="atlas-head-actions"><button data-action="notes">Field notes <kbd>J</kbd></button><button data-action="close" aria-label="Close map">Back to the coast <kbd>M</kbd></button></div></header><div class="atlas-body"><aside class="atlas-sidebar"><label class="atlas-search-label" for="atlas-search">FIND YOUR NEXT STOP</label><input id="atlas-search" type="search" placeholder="Search cities, islands, places…" autocomplete="off"><div class="atlas-list" aria-label="Map destinations"></div><div class="atlas-selection" aria-live="polite"><span class="atlas-kicker">CHOOSE A WAYPOINT</span><h3>Somewhere along the coast.</h3><p>Choose a marker or a place in the list to travel there.</p><button data-action="teleport" disabled>Teleport here <kbd>↵</kbd></button><button data-action="track" disabled>Set compass waypoint</button></div></aside><div class="atlas-stage"><canvas class="atlas-canvas" tabindex="0" aria-label="Interactive map. Drag to pan, scroll or pinch to zoom. Destinations are also available in the list."></canvas><div class="atlas-tools"><button data-action="in" aria-label="Zoom map in">+</button><button data-action="out" aria-label="Zoom map out">−</button><button data-action="locate">Find me</button><button data-action="fit">Whole coast</button></div><div class="atlas-legend"><span class="atlas-dot"></span> Cities & discoveries <span class="atlas-dot atlas-you"></span> You <span class="atlas-dot atlas-waypoint"></span> Waypoint</div></div></div><footer class="atlas-footer"><span><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a> · <a href="https://data.sfgov.org/d/ynuv-fyni" target="_blank" rel="noopener">DataSF</a> · <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noopener">Terrain credits</a> <i>·</i> DRAG TO PAN <i>·</i> SCROLL / PINCH TO ZOOM <i>·</i> SELECT A MARKER TO TRAVEL</span><span><kbd>← ↑ ↓ →</kbd> Pan <kbd>+ −</kbd> Zoom <kbd>Esc</kbd> Close</span></footer>`;
+  this.el.innerHTML=`<header class="atlas-head"><div><span class="atlas-kicker">COASTLOVE · A PACIFIC ATLAS</span><h2>The California coast</h2></div><div class="atlas-head-actions"><button data-action="notes">Field notes <kbd>J</kbd></button><button data-action="close" aria-label="Close map">Back to the coast <kbd>M</kbd></button></div></header><div class="atlas-body"><aside class="atlas-sidebar"><label class="atlas-search-label" for="atlas-search">FIND YOUR NEXT STOP</label><input id="atlas-search" type="search" placeholder="Search cities, islands, places…" autocomplete="off"><div class="atlas-list" aria-label="Map destinations"></div><div class="atlas-selection" aria-live="polite"><span class="atlas-kicker">CHOOSE A WAYPOINT</span><h3>Somewhere along the coast.</h3><p>Click anywhere to drop a teleport pin, then press Enter. You can also choose a place from the list.</p><button data-action="teleport" disabled>Teleport here <kbd>↵</kbd></button><button data-action="track" disabled>Set compass waypoint</button></div></aside><div class="atlas-stage"><canvas class="atlas-canvas" tabindex="0" aria-label="Interactive map. Click anywhere to place a teleport pin, then press Enter to travel. Drag to pan; scroll or pinch to zoom. Destinations are also available in the list."></canvas><div class="atlas-tools"><button data-action="in" aria-label="Zoom map in">+</button><button data-action="out" aria-label="Zoom map out">−</button><button data-action="locate">Find me</button><button data-action="fit">Whole coast</button></div><div class="atlas-legend"><span class="atlas-dot"></span> Cities & discoveries <span class="atlas-dot atlas-you"></span> You <span class="atlas-dot atlas-waypoint"></span> Waypoint</div></div></div><footer class="atlas-footer"><span><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a> · <a href="https://data.sfgov.org/d/ynuv-fyni" target="_blank" rel="noopener">DataSF</a> · <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noopener">Terrain credits</a> <i>·</i> DRAG TO PAN <i>·</i> SCROLL / PINCH TO ZOOM <i>·</i> CLICK TO PLACE A PIN <i>·</i> ENTER TO TELEPORT</span><span><kbd>← ↑ ↓ →</kbd> Pan <kbd>+ −</kbd> Zoom <kbd>Esc</kbd> Close</span></footer>`;
   exploration.ui.append(this.el);
   this.canvas=this.el.querySelector('canvas');this.ctx=this.canvas.getContext('2d');this.view=new AtlasView(exploration.chart.bounds);
+  this.pin=document.createElement('div');this.pin.className='atlas-teleport-pin';this.pin.hidden=true;this.pin.setAttribute('role','img');this.pin.setAttribute('aria-label','Teleport destination. Press Enter to teleport here.');
+  this.pin.innerHTML='<span><kbd>↵</kbd> Teleport here</span><svg width="36" height="46" viewBox="0 0 36 46" aria-hidden="true"><path d="M18 44C14 36 2 27 2 18a16 16 0 1 1 32 0c0 9-12 18-16 26Z" fill="#a63c2e" stroke="#fff1cc" stroke-width="2"/><path d="m20 8-9 13h7l-2 9 10-14h-7Z" fill="#fff1cc"/></svg>';
+  this.canvas.after(this.pin);
   this.background=this.paperBackground(exploration.chart.background);
   this.margin=document.createElement('canvas');this.margin.width=this.background.width;this.margin.height=this.background.height;
   const marginContext=this.margin.getContext('2d');marginContext.filter='blur(18px)';marginContext.drawImage(this.background,-24,-24,this.margin.width+48,this.margin.height+48);
@@ -33,7 +37,7 @@ export class TravelMap {
    this.invalidate();
   },{passive:false});
   this.canvas.addEventListener('pointerdown',event=>{
-   if(event.button!==0)return;this.canvas.focus();const p=this.point(event);this.drag={...p,moved:false};this.canvas.setPointerCapture(event.pointerId);
+   if(event.button!==0)return;this.canvas.focus();const p=this.point(event);this.pointerStart=p;this.drag={...p,moved:false};this.canvas.setPointerCapture(event.pointerId);
   });
   this.canvas.addEventListener('pointermove',event=>{
    const p=this.point(event);
@@ -43,7 +47,7 @@ export class TravelMap {
   this.canvas.addEventListener('pointerup',event=>{
    if(!this.drag)return;const moved=this.drag.moved;this.drag=null;
    if(this.canvas.hasPointerCapture(event.pointerId))this.canvas.releasePointerCapture(event.pointerId);
-   if(!moved){const p=this.hit(this.point(event));if(p)this.select(p);}
+   if(!moved){const point=this.point(event);if(Math.hypot(point.x-this.pointerStart.x,point.y-this.pointerStart.y)<=4)this.selectPoint(point);}
   });
   this.canvas.addEventListener('pointercancel',()=>{this.drag=null;});
   this.canvas.addEventListener('lostpointercapture',()=>{this.drag=null;});
@@ -68,20 +72,25 @@ export class TravelMap {
  }
  resize(){const rect=this.canvas.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);this.view.resize(rect.width,rect.height);this.canvas.width=Math.round(rect.width*dpr);this.canvas.height=Math.round(rect.height*dpr);this.ctx.setTransform(dpr,0,0,dpr,0,0);this.invalidate();}
  point(event){const rect=this.canvas.getBoundingClientRect();return{x:event.clientX-rect.left,y:event.clientY-rect.top};}
+ selectPoint(point){
+  const known=this.hit(point),world=this.view.world(point.x,point.y);
+  this.select(known||mapPin(world.x,world.z));this.canvas.focus({preventScroll:true});
+ }
  hit(point){let nearest=null,distance=14;for(const place of PLACES){const p=this.view.screen(place.x,place.z),d=Math.hypot(point.x-p.x,point.y-p.y);if(d<distance){nearest=place;distance=d;}}return nearest;}
  select(place,focus=false){
-  this.selected=place;const box=this.detail;box.querySelector('.atlas-kicker').textContent=place.major?'CITY WAYPOINT':(REGIONS[place.region]||'COASTAL DISCOVERY').toUpperCase();
+  if(this.travelling)return;
+  this.selected=place;const box=this.detail;box.querySelector('.atlas-kicker').textContent=place.custom?'CUSTOM TELEPORT PIN':place.major?'CITY WAYPOINT':(REGIONS[place.region]||'COASTAL DISCOVERY').toUpperCase();
   box.querySelector('h3').textContent=place.label;box.querySelector('p').textContent=place.hint;
-  this.buttons.teleport.disabled=this.buttons.track.disabled=false;
+  this.buttons.teleport.disabled=this.travelling;this.buttons.track.disabled=false;
   for(const button of this.list.querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.id===place.id));
   if(focus)this.view.focus(place.x,place.z,Math.max(this.view.zoom,4));
   this.invalidate();
  }
  async travel(){
   if(!this.selected||this.travelling)return;
-  this.travelling=true;this.buttons.teleport.disabled=true;this.buttons.teleport.textContent='Preparing your arrival…';
+  this.travelling=true;this.buttons.teleport.disabled=this.buttons.track.disabled=true;this.buttons.teleport.textContent='Preparing your arrival…';
   try{await this.e.visit(this.selected);}catch(error){console.error(error);this.e.app.game.toast('That destination could not load. Please try again.');}
-  finally{this.travelling=false;this.buttons.teleport.disabled=!this.selected;this.buttons.teleport.innerHTML='Teleport here <kbd>↵</kbd>';}
+  finally{this.travelling=false;this.buttons.teleport.disabled=this.buttons.track.disabled=!this.selected;this.buttons.teleport.innerHTML='Teleport here <kbd>↵</kbd>';}
  }
  renderList(){
   const normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),query=normalize(this.search.value.trim());this.list.replaceChildren();
@@ -103,13 +112,15 @@ export class TravelMap {
   const d={ArrowLeft:[85,0],ArrowRight:[-85,0],ArrowUp:[0,85],ArrowDown:[0,-85]}[event.key];
   if(d){event.preventDefault();this.view.pan(...d);this.invalidate();}
   else if(['+','=','-','_'].includes(event.key)){event.preventDefault();this.zoom(['-','_'].includes(event.key)?1/1.3:1.3);}
-  else if(event.key==='Enter'&&event.target===this.canvas){event.preventDefault();this.travel();}
+  else if(event.key==='Enter'&&event.target===this.canvas){event.preventDefault();if(!event.repeat)this.travel();}
  }
  zoom(factor){this.view.zoomAt(factor);this.invalidate();}
  invalidate(){this.dirty=true;}
  update(){if(!this.open)return;const p=this.e.app.player.position,key=`${Math.round(p.x*this.view.scale)}:${Math.round(p.z*this.view.scale)}:${this.e.target?.id}`;if(key!==this.lastPlayer){this.lastPlayer=key;this.dirty=true;}if(this.dirty){this.draw();this.dirty=false;}}
  draw(){
   const ctx=this.ctx,v=this.view,W=v.width,H=v.height,b=v.bounds,to=(x,z)=>v.screen(x,z);ctx.clearRect(0,0,W,H);ctx.fillStyle='#abbbae';ctx.fillRect(0,0,W,H);
+  this.pin.hidden=!this.selected;
+  if(this.selected){const p=to(this.selected.x,this.selected.z);this.pin.hidden=p.x<0||p.x>W||p.y<0||p.y>H;this.pin.style.left=`${p.x}px`;this.pin.style.top=`${p.y}px`;this.pin.classList.toggle('below',p.y<78);this.pin.firstElementChild.style.transform=`translateX(${Math.max(65,Math.min(W-65,p.x))-p.x}px)`;}
   const p=to(b.x,b.z),size=b.size*v.scale,bg=this.background;
   // Bleed the outer terrain colors into wide-screen margins so the edge of
   // the survey never looks like an invented straight coastline.

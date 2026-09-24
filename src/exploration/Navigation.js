@@ -19,14 +19,14 @@ export function safeAt( terrain, colliders, x, z, water = false, radius = 0.6 ) 
 	return true;
 }
 
-export function findSafeSpot( terrain, colliders, x, z, water = false, maxRadius = 4096 ) {
+export function findSafeSpot( terrain, colliders, x, z, water = false, maxRadius = 4096, accept = null ) {
 	const footprint = water ? 5 : 0.6;
 	for ( let r = 0; r <= maxRadius; r += r < 60 ? 4 : 20 ) {
 		const count = Math.max( 1, Math.ceil( Math.PI * 2 * r / Math.max( 8, r * 0.09 ) ) );
 		for ( let i = 0; i < count; i ++ ) {
 			const a = i / count * Math.PI * 2;
 			const px = x + Math.sin( a ) * r, pz = z + Math.cos( a ) * r;
-			if ( safeAt( terrain, colliders, px, pz, water, footprint ) ) return new Vector3( px, water ? 0 : terrain.heightAt( px, pz ), pz );
+			if ( (!accept||accept(px,pz)) && safeAt( terrain, colliders, px, pz, water, footprint ) ) return new Vector3( px, water ? 0 : terrain.heightAt( px, pz ), pz );
 		}
 	}
 	return null;

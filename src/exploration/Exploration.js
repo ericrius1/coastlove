@@ -9,6 +9,7 @@ import { Landmarks } from '../california/Landmarks.js';
 import { CoastalChart } from '../california/CoastalChart.js';
 import { wrapHour, clockLabel } from '../california/TimeScrub.js';
 import { findSafeSpot } from './Navigation.js';
+import { mapPinArrival } from '../california/MapPin.js';
 import './exploration.css';
 
 const SAVE = 'coastlove.journal.v1';
@@ -91,6 +92,12 @@ export class Exploration {
   const app=this.app,water=!!place.water;
   app.coastalTowns?.syncColliders(place);
   app.localTerrain?.update(place,true);
+  if(place.custom){
+   const arrival=mapPinArrival(app,place);
+   if(!arrival){app.game.toast('That pin is outside the playable map. Choose a spot closer to California.');return;}
+   this.traffic.release();app.player.position.copy(arrival.position);app.player.mode='arriving';this.switchMode(arrival.mode,arrival.position);
+   this.target=place;app.game.toast(arrival.mode==='plane'?'Above your pin · no clear footing below':'Arrived at your map pin');return;
+  }
   const street=app.terrainData.streets?.inCity(place.x,place.z)?app.terrainData.streets.nearestStreet(place.x,place.z,600):null;
   const arrival=findSafeSpot(app.terrainData,app.colliders,(street?.x??place.x)+(place.kind==='lighthouse'?8:0),(street?.z??place.z)+(place.kind==='wreck'?7:0),water,200);
   if(!arrival){app.game.toast('This shore is too steep. Approach it by plane.');return;}
@@ -135,14 +142,14 @@ export class Exploration {
 		this.find( '.exp-next' ).innerHTML = this.page === r.pages.length - 1 ? 'Save story <kbd>E</kbd>' : 'Continue <kbd>E</kbd>';
 	}
 
-	switchMode( mode ) {
+	switchMode( mode, preparedArrival = null ) {
         const ticket=this.modeTicket=(this.modeTicket||0)+1;this.visitTicket=(this.visitTicket||0)+1;
         if(mode==='car'){this.closeDialogue();this.toggleJournal(false);this.toggleMap(false);this.app.freeCam=false;return this.traffic.summon(ticket);}
 		const app = this.app, p = app.player, b = app.boatCtl;
 		if ( mode === p.mode && ! app.freeCam ) return;
 		// Compute arrival before changing any current state: a failed search is harmless.
 		const from = p.position;
-		const destination = mode === 'plane' ? null : findSafeSpot( app.terrainData, app.colliders, from.x, from.z, mode === 'boat' );
+		const destination = mode === 'plane' ? null : preparedArrival ?? findSafeSpot( app.terrainData, app.colliders, from.x, from.z, mode === 'boat' );
 		if ( mode !== 'plane' && ! destination ) { app.game.toast( 'No safe arrival nearby. Fly closer to the island first.' ); return; }
 		this.traffic.release();
 		this.closeDialogue(); this.toggleJournal( false ); this.toggleMap(false);

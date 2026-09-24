@@ -4,6 +4,8 @@ import { VehicleInteractions } from '../src/exploration/VehicleInteractions.js';
 import { Seaplane } from '../src/exploration/Seaplane.js';
 import { Scene, Vector3 } from '../src/engine/index.js';
 import { Colliders } from '../src/world/Colliders.js';
+import {mapPin,mapPinArrival} from '../src/california/MapPin.js';
+import {project} from '../src/california/Geography.js';
 
 const view=new AtlasView({x:-20000,z:-27900,size:36000});view.resize(1200,700);
 for(const [x,z] of [[0,0],[-14000,-26000],[3000,-5000]]){const s=view.screen(x,z),w=view.world(s.x,s.y);assert.ok(Math.hypot(w.x-x,w.z-z)<1e-8);}
@@ -12,6 +14,17 @@ const marker=view.screen(0,0);view.pan(30,-20);const moved=view.screen(0,0);asse
 view.zoomAt(1e9);assert.equal(view.zoom,2048);view.zoomAt(1e-9);assert.equal(view.zoom,1);view.focus(-1e6,1e6);assert.equal(view.cx,-20000);assert.equal(view.cz,8100);view.fit();assert.equal(view.cx,-2000);assert.equal(view.cz,-9900);
 view.resize(300,800);assert.equal(view.scale,300/36000);assert.deepEqual(view.screen(view.cx,view.cz),{x:150,y:400});
 console.log('ok map projection, pointer-anchored zoom, dragging, bounds, fit and narrow viewport');
+
+const coordinates=project(-122.413,37.793),pin=mapPin(coordinates.x,coordinates.z);
+assert.ok(pin.custom&&pin.hint.includes('37.79300° N')&&pin.hint.includes('122.41300° W'));
+const pinApp={terrainData:{size:2097152,heightAt:()=>20,streets:{nearestStreet(){throw new Error('A custom pin must not snap to a street');}}},colliders:new Colliders()};
+let arrival=mapPinArrival(pinApp,pin);assert.equal(arrival.mode,'walk');assert.equal(arrival.position.x,pin.x);assert.equal(arrival.position.z,pin.z);
+pinApp.terrainData.heightAt=()=>-15;arrival=mapPinArrival(pinApp,pin);assert.equal(arrival.mode,'boat');assert.equal(arrival.position.y,0);
+pinApp.terrainData.groundHeight=()=>75;arrival=mapPinArrival(pinApp,pin);assert.equal(arrival.mode,'walk');assert.equal(arrival.position.y,75,'bridge pin arrives on deck instead of water below');
+pinApp.realCities={containsBuilding:()=>true};arrival=mapPinArrival(pinApp,pin);assert.equal(arrival.mode,'plane','blocked pin arrives overhead instead of inside a building');assert.equal(arrival.position.x,pin.x);assert.equal(arrival.position.z,pin.z);
+pinApp.realCities.containsBuilding=(x,z)=>Math.hypot(x-pin.x,z-pin.z)<5;arrival=mapPinArrival(pinApp,pin);assert.equal(arrival.mode,'walk');assert.ok(arrival.position.distanceTo(new Vector3(pin.x,75,pin.z))>=5,'nearby clear footing is preferred over a building interior');
+assert.equal(mapPinArrival(pinApp,{x:Infinity,z:0}),null);assert.equal(mapPinArrival(pinApp,{x:2e6,z:0}),null);
+console.log('ok custom pins preserve coordinates and choose safe land, water, bridge or overhead arrivals');
 
 const terrain={size:65536,heightAt:(x,z)=>z<0?10:-10},colliders=new Colliders(),plane=new Seaplane(new Scene(),terrain);
 const boat={position:new Vector3(100,0,100),model:{boardPoint:new Vector3(0,1,0),exitPoints:[new Vector3(2,1,0)]},driven:false,throttle:0,throttleTarget:0,toWorld:(v,out)=>out.copy(v).add(boat.position)};

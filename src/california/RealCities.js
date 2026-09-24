@@ -160,6 +160,19 @@ export class RealCities {
   }
   for(let i=count;i<this.pool.length;i++)this.pool[i].solid=false;this.activeColliders=count;
  }
+ containsBuilding(x,z){
+  for(const c of this.cells.values()){
+   if(c.id==='road'||Math.abs(c.cx-x)>768||Math.abs(c.cz-z)>768)continue;
+   for(const b of c.buildings){
+    let inside=false;
+    for(let i=0,j=b.p.length-1;i<b.p.length;j=i++){
+     const a=b.p[i],d=b.p[j];
+     if((a[1]>z)!==(d[1]>z)&&x<(d[0]-a[0])*(z-a[1])/(d[1]-a[1])+a[0])inside=!inside;
+    }
+    if(inside)return true;
+   }
+  }return false;
+ }
  flightClearance(x,z,ax,az){
   let h=0;for(const c of this.cells.values())if(Math.hypot(c.cx-x,c.cz-z)<500||Math.hypot(c.cx-ax,c.cz-az)<500)for(const b of c.buildings)if(Math.hypot(b.cx-ax,b.cz-az)<80||Math.hypot(b.cx-x,b.cz-z)<60)h=Math.max(h,b.top);return h;
  }

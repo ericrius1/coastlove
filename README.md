@@ -18,9 +18,9 @@ Open **http://127.0.0.1:5190** in Chrome with WebGPU enabled. The first visit co
 | --- | --- |
 | 1 / 2 / 3 | Boat / seaplane / safe arrival on foot |
 | WASD | Walk, steer the boat, or gently turn/change speed in flight |
-| Trackpad left / right in flight | Steer Marigold; click the game view to capture the pointer |
+| Trackpad in flight | Fly Marigold's nose: left/right turns, up/down pitches; click the game view to capture the pointer |
 | Shift | Run or boost |
-| Space / C in flight | Raise / lower the chosen altitude; release to hold it |
+| Space / C in flight | Rise / descend; release to hold height when the nose is level |
 | Hold Z + two-finger trackpad swipe | Scrub time backward / forward; horizontal and vertical gestures work |
 | Hold Z + mouse drag | Alternative time scrub |
 | E | Enter / exit a nearby car, talk, or interact |
@@ -39,7 +39,7 @@ The shoreline comes from **Natural Earth’s real land polygons**, projected aro
 
 There are four three-part NPC stories, 20 wandering island foxes, 12 sea lions, ten saved discoveries, a poppy/lupine bluff, wind-shaped grove, sea arch, lighthouse with a rotating night beam, luminous grotto, ship’s bell, and a telescope camp. Tidewater’s ocean, sky, fishing, marine life, sound, and boat physics are retained. The seaplane is an arcade travel mode with terrain clearance; switching to 3 provides the safe walking arrival.
 
-The seaplane cruises gently when you release the speed keys. Click the game view, then slide one finger left or right on the trackpad to steer; A/D still work. Hold W to fly faster, S to slow down, and Shift for a short fast crossing. Space/C adjusts the altitude you want; releasing them keeps the plane level while it climbs automatically over terrain. Hold Z and swipe with two fingers to scrub time instead. Use 3 to arrive safely on foot.
+The seaplane cruises gently when you release the speed keys. Click the game view, then fly its nose with the trackpad: left/right turns and up/down pitches. Each frame's turn and pitch are rate-limited to keep quick gestures smooth. A/D still turn, W flies faster, S slows down, and Shift boosts. Space/C rise or descend; with a level nose, releasing them holds height. The plane climbs above approaching terrain. Hold Z and swipe with two fingers to scrub time instead. Use 3 to arrive safely on foot.
 
 ## Coastal driving
 

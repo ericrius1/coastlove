@@ -365,7 +365,6 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		engine.domElement.addEventListener( 'click', () => {
 
 			if ( window.__ui && window.__ui.isPointerOverUI ) return;
-			this.input.requestLock();
 			if ( this.audio ) this.audio.resume();
 
 		} );

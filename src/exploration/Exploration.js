@@ -144,7 +144,7 @@ export class Exploration {
 			p.mode = 'walk'; p.position.copy( destination ); p.grounded = true; p.pitch = - 0.05;
 			p.waterMean = null; p.camOff = p.camOffV = 0;
 		}
-		app.game.toast( mode === 'plane' ? 'Marigold · move a finger left / right on the trackpad to steer · Space / C set height' : mode === 'boat' ? 'At the helm · WASD to drive · V for cockpit view' : 'Safely ashore · follow your compass to meet an islander' );
+		app.game.toast( mode === 'plane' ? 'Marigold · trackpad turns and pitches the nose · A / D also turn' : mode === 'boat' ? 'At the helm · WASD to drive · V for cockpit view' : 'Safely ashore · follow your compass to meet an islander' );
 		app.input.consumeLook();
 	}
 
@@ -209,7 +209,7 @@ export class Exploration {
 		const bearing = ( Math.atan2( dx, - dz ) * 180 / Math.PI + 360 ) % 360;
 		this.find( '.exp-objective' ).textContent = `${ this.target.label || this.target.name } · ${ Math.round( Math.hypot( dx, dz ) ) } m ${ compass[ Math.round( bearing / 45 ) % 8 ] }`;
 		this.ui.querySelectorAll( '[data-mode]' ).forEach( button => button.setAttribute( 'aria-pressed', String( button.dataset.mode === p.mode && ! app.freeCam ) ) );
-		this.find( '.exp-controls' ).textContent = p.mode === 'car' ? `W / S accelerate & reverse · A / D steer\n${Math.round(Math.abs(this.traffic.active?.speed||0)*3.6)} km/h · Space brake · E get out` : p.mode === 'plane' ? `Trackpad left / right or A / D to steer\nW / S speed · Space / C height · ${ Math.round( this.plane.speed * 3.6 ) } km/h` : p.mode === 'boat' ? 'WASD steer & throttle · Shift boost\n3 goes ashore · 2 takes flight' : 'WASD walk · Shift run · E enter car / listen\n1 summons boat · 2 takes flight';
+		this.find( '.exp-controls' ).textContent = p.mode === 'car' ? `W / S accelerate & reverse · A / D steer\n${Math.round(Math.abs(this.traffic.active?.speed||0)*3.6)} km/h · Space brake · E get out` : p.mode === 'plane' ? `Trackpad turns & pitches · A / D also turn\nW / S speed · Space / C up / down · ${ Math.round( this.plane.speed * 3.6 ) } km/h` : p.mode === 'boat' ? 'WASD steer & throttle · Shift boost\n3 goes ashore · 2 takes flight' : 'WASD walk · Shift run · E enter car / listen\n1 summons boat · 2 takes flight';
 		this.ui.hidden = !! ( app.ui?.ui?._photo || app.ui?.ui?._start || app.ui?.ui?._help || app.game.guide?.open );
 	}
 }

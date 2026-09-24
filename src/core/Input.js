@@ -28,7 +28,11 @@ export class Input {
 
 		dom.addEventListener( 'mousedown', ( e ) => {
 
-			if ( e.button === 0 ) this.mouseDown = true;
+			if ( e.button === 0 ) {
+				this.mouseDown = true;
+				// Match San Francisco: capture on the press itself, including after Esc.
+				this.requestLock();
+			}
 			if ( e.button === 2 ) this.rightDown = true;
 
 		} );

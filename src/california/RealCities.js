@@ -43,11 +43,22 @@ function footprint(batch,b,terrain,ox,oz,city){
  const tris=earcut(poly.flat());for(let i=0;i<tris.length;i+=3)batch.indices.push(start+tris[i],start+tris[i+2],start+tris[i+1]);
 }
 function roads(batch,segments,terrain,ox,oz){
+ const joinNormal=(s,index)=>{
+  const p=s.route.points,a=p[Math.max(0,index-1)],b=p[index],c=p[Math.min(p.length-1,index+1)];
+  let ax=b.x-a.x,az=b.z-a.z,bx=c.x-b.x,bz=c.z-b.z;
+  const al=Math.hypot(ax,az),bl=Math.hypot(bx,bz);
+  if(!al)return[bz/bl,-bx/bl];if(!bl)return[az/al,-ax/al];
+  ax/=al;az/=al;bx/=bl;bz/=bl;
+  const denominator=Math.max(.4,1+ax*bx+az*bz);
+  return[(az+bz)/denominator,-(ax+bx)/denominator];
+ };
  const ribbon=(s,l,r,lift,c)=>{
-  const n=Math.max(1,Math.ceil(s.len/4)),nx=s.dz/s.len,nz=-s.dx/s.len,across=Math.max(1,Math.ceil((r-l)/2));
+  const n=Math.max(1,Math.ceil(s.len/4)),across=Math.max(1,Math.ceil((r-l)/2));
+  const start=s.clipped?[s.dz/s.len,-s.dx/s.len]:joinNormal(s,s.index),end=s.clipped?start:joinNormal(s,s.index+1);
   for(let i=0;i<n;i++)for(let j=0;j<across;j++){
    const left=l+(r-l)*j/across,right=l+(r-l)*(j+1)/across;const points=[];
    for(const[u,side]of[[i/n,left],[(i+1)/n,left],[(i+1)/n,right],[i/n,right]]){
+    const nx=start[0]+(end[0]-start[0])*u,nz=start[1]+(end[1]-start[1])*u;
     const x=s.a.x+s.dx*u+nx*side,z=s.a.z+s.dz*u+nz*side;
     const y=s.route.bridge?s.a.y+(s.b.y-s.a.y)*u:terrain.heightAt(x,z);
     points.push([x-ox,y+lift,z-oz]);
@@ -58,7 +69,7 @@ function roads(batch,segments,terrain,ox,oz){
   const r=s.route;if(r.tunnel)continue;const w=r.width/2;
   ribbon(s,-w-1.7,w+1.7,.08,CURB);ribbon(s,-w,w,.15,ASPHALT);
   if(s.len>20){
-   const margin=Math.min(12,s.len*.25),u=margin/s.len;s={...s,a:{x:s.a.x+s.dx*u,y:s.a.y+(s.b.y-s.a.y)*u,z:s.a.z+s.dz*u},b:{x:s.b.x-s.dx*u,y:s.b.y-(s.b.y-s.a.y)*u,z:s.b.z-s.dz*u},dx:s.dx*(1-2*u),dz:s.dz*(1-2*u),len:s.len-2*margin};
+   const margin=Math.min(12,s.len*.25),u=margin/s.len;s={...s,clipped:true,a:{x:s.a.x+s.dx*u,y:s.a.y+(s.b.y-s.a.y)*u,z:s.a.z+s.dz*u},b:{x:s.b.x-s.dx*u,y:s.b.y-(s.b.y-s.a.y)*u,z:s.b.z-s.dz*u},dx:s.dx*(1-2*u),dz:s.dz*(1-2*u),len:s.len-2*margin};
    for(const side of[-1,1])ribbon(s,side*(w-.25)-.06,side*(w-.25)+.06,.19,PAINT);
    if(!r.one&&r.width>=8)for(const side of[-1,1])ribbon(s,side*.10-.045,side*.10+.045,.20,YELLOW);
   }

@@ -2,7 +2,7 @@ import './headless.mjs';
 import {GPU} from '../src/engine/gpu/GPU.js';
 import assert from 'node:assert/strict';
 import {Scene,Vector3} from '../src/engine/index.js';
-import {CaliforniaTerrain} from '../src/california/CaliforniaTerrain.js';
+import {realTerrain} from './real-data.mjs';
 import {SETTLEMENTS,SHOWCASE_CITIES} from '../src/california/Settlements.js';
 import {GEO,project,unproject,INLAND} from '../src/california/Geography.js';
 import {REGION,PLACES} from '../src/california/Region.js';
@@ -11,33 +11,31 @@ import {IslandLife} from '../src/exploration/IslandLife.js';
 import {safeAt,findSafeSpot} from '../src/exploration/Navigation.js';
 import {VegSite,scatterVegetation,buildGrassMask} from '../src/world/vegetation/Scatter.js';
 import {wrapHour,wheelHours,clockLabel} from '../src/california/TimeScrub.js';
-const t=new CaliforniaTerrain();
-assert.equal(t.size,65536);assert.equal(t.res,4096);
+const t=await realTerrain();
+assert.equal(t.size,2097152);assert.equal(t.res,2048);
 assert.ok(t.landArea>1.662e6*4);
 const names=REGION.islands.filter(i=>['miguel','rosa','cruz','anacapa'].includes(i.id)).sort((a,b)=>a.x-b.x).map(i=>i.id);
 assert.deepEqual(names,['miguel','rosa','cruz','anacapa']);
-assert.ok(coastFieldAt(0,700)>200,'open channel separates mainland from islands');
-assert.ok(coastFieldAt(-3500*18/32,2200*18/32)<0,'San Miguel footprint is land');
-assert.ok(coastFieldAt(-2100*18/32,2600*18/32)<0,'Santa Rosa footprint is land');
-assert.ok(coastFieldAt(-180*18/32,2360*18/32)<0,'Santa Cruz footprint is land');
-assert.ok(coastFieldAt(740,1390)<0,'Anacapa footprint is land');
-console.log(`ok real shoreline arrangement; ${(t.landArea/1e6).toFixed(2)} km² land, ${(t.landArea/1.662e6).toFixed(1)}× Windward; fixed 4096² atlas`);
+for(const [lon,lat]of[[-120.35,34.04],[-120.09,33.96],[-119.72,34.03]]){
+ const p=project(lon,lat);assert.ok(t.heightAt(p.x,p.z)>1,'real Channel Island interior is land');
+}
+console.log(`ok real-metre world and bounded ${t.res}² atlas`);
 for(const p of PLACES){
  const pos=findSafeSpot(t,null,p.x,p.z,!!p.water,180);
  assert.ok(pos,`safe arrival at ${p.label}`);assert.ok(safeAt(t,null,pos.x,pos.z,!!p.water,p.water?5:.6));
 }
-assert.equal(SETTLEMENTS.length,30);assert.equal(PLACES.length,40);
+assert.equal(SETTLEMENTS.length,30);assert.equal(PLACES.length,56);
 assert.deepEqual(SHOWCASE_CITIES,['los-angeles','san-diego','san-jose']);
 assert.ok(Math.abs(INLAND*GEO.scale-16093.44)<.001);
 for(const [lon,lat]of[[-117.12,32.54],[-124.2,41.995],[-122.48,37.82]]){
  const p=project(lon,lat),ll=unproject(p.x,p.z);assert.ok(Math.abs(ll.lon-lon)<1e-9&&Math.abs(ll.lat-lat)<1e-9);assert.ok(Math.abs(p.x)<t.size/2&&Math.abs(p.z)<t.size/2);
 }
-assert.ok(t.highway.length>100000,'continuous scenic road spans the coast and return');
+assert.ok(t.streets.routes.length>20000,'real city road graph');
 console.log('ok southern/northern borders, all eight Channel Islands, 10 real-mile band, 30 town districts');
 const scene=new Scene(),life=new IslandLife(scene,t,null,{california:true});
 assert.equal(life.residents.length,9);assert.equal(life.animals.length,32);
 assert.equal(life.animals.filter(a=>a.kind==='fox').length,20);assert.equal(life.animals.filter(a=>a.kind==='seaLion').length,12);
-for(const r of life.residents)assert.ok(safeAt(t,null,r.position.x,r.position.z));
+for(const r of life.residents)assert.ok(safeAt(t,null,r.position.x,r.position.z),r.name);
 for(const kind of ['fox','seaLion']){
  const animal=life.animals.find(a=>a.kind===kind),player={mode:'walk',position:animal.home.clone().add(new Vector3(10,0,10))};
  for(let i=0;i<600;i++)life.update(1/60,player);

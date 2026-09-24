@@ -3,7 +3,7 @@ import { INLAND, GEO } from './Geography.js';
 import { coastFieldAt } from './CoastField.js';
 export class CoastalChart {
  constructor(canvas,terrain,onSelect){
-  this.canvas=canvas;this.context=canvas.getContext('2d');this.bounds={x:-20000,z:-27900,size:36000};this.view={...this.bounds};this.terrain=terrain;
+  this.canvas=canvas;this.context=canvas.getContext('2d');this.bounds={x:-650000,z:-910000,size:1160000};this.view={...this.bounds};this.terrain=terrain;
   this.background=document.createElement('canvas');this.background.width=this.background.height=1024;
   const ctx=this.background.getContext('2d'),image=ctx.createImageData(1024,1024);
   for(let j=0;j<1024;j++)for(let i=0;i<1024;i++){
@@ -47,6 +47,6 @@ export class CoastalChart {
   ctx.beginPath();ctx.arc(this.px(player.x),this.pz(player.z),5,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#172f2c';ctx.stroke();ctx.restore();
   ctx.textAlign='left';ctx.fillStyle='#f5efd9';ctx.font='12px Arial';ctx.fillText('N ↑',20,28);
   const realKm=this.view.size*GEO.scale/1000,barKm=realKm>500?100:realKm>100?25:10;
-  ctx.fillText(`${barKm} real km · 1:32 travel scale`,20,600);ctx.fillRect(20,610,barKm/realKm*640,2);ctx.fillText('Bright land: 10-mile coastal band',20,630);
+  ctx.fillText(`${barKm} real km · 1:1 travel scale`,20,600);ctx.fillRect(20,610,barKm/realKm*640,2);ctx.fillText('Bright land: 10-mile coastal band',20,630);
  }
 }

@@ -1,6 +1,6 @@
 import { PLACES } from '../src/california/Region.js';
 import { safeAt } from '../src/exploration/Navigation.js';
-export function checkCalifornia(app){
+export async function checkCalifornia(app){
  const e=app.exploration,p=app.player,input=app.input,key='coastlove.journal.v1';
  const old={read:new Set(e.read),seen:new Set(e.seen),found:new Set(e.found),save:localStorage.getItem(key),position:p.position.clone(),yaw:p.yaw,hour:app.settings.timeOfDay,timeSpeed:app.settings.timeSpeed,target:e.target};
  const results=[];const check=(condition,message)=>{if(!condition)throw new Error(message);results.push(message);};
@@ -10,7 +10,7 @@ export function checkCalifornia(app){
    press(code);check(p.mode===mode,`${code} selects ${mode}`);check(app.boatCtl.driven===(mode==='boat'),'vehicle ownership remains exclusive');check(e.plane.group.visible===(mode==='plane'||e.plane.parked),'plane visible while flying or parked');
   }
   for(const place of PLACES){
-   e.visit(place);check(p.mode===(place.water?'boat':'walk'),`visit ${place.label}`);
+   await e.visit(place);check(p.mode===(place.water?'boat':'walk'),`visit ${place.label}`);
    check(safeAt(app.terrainData,app.colliders,p.position.x,p.position.z,!!place.water,place.water?5:.6),`safe full footprint at ${place.label}`);
    e.update(.016);
   }

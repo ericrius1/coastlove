@@ -1,124 +1,89 @@
-import { CoastalRoute, gradeCoastalRoad } from './CoastalRoads.js';
+import {goldenGateDeck} from './GoldenGate.js';
+import {rampHeight} from './StuntRamps.js';
+import { CoastalRoute } from './CoastalRoads.js';
 import { coastFieldAt } from './CoastField.js';
 import { TerrainData } from '../world/TerrainData.js';
 import { REGION, PLACES, CALIFORNIA_STORIES } from './Region.js';
 import { SETTLEMENTS } from './Settlements.js';
-import { INLAND, project, unproject } from './Geography.js';
-import { COAST_DRIVE } from './Coastline.js';
+import { INLAND } from './Geography.js';
+import { sampleElevation } from './Elevation.js';
 import { smoothstep, clamp } from '../util/Noise.js';
-import { upsample2 } from '../world/terrain/TerrainNoise.js';
 
-export function islandDistance( x, z, island ) {
-	const c = Math.cos( island.angle ), s = Math.sin( island.angle );
-	const dx = x - island.x, dz = z - island.z;
-	return ( Math.hypot( ( dx * c + dz * s ) / island.rx, ( - dx * s + dz * c ) / island.rz ) - 1 ) * island.rz;
-}
-
-// Fixed 4096² atlas across a 65.536 km domain. Close tessellation and material
-// detail remain unchanged; distant terrain uses the existing continuous LOD.
-// The richly populated corridor follows 10 real miles inland, including bays.
+export function islandDistance(x,z,island){const c=Math.cos(island.angle),s=Math.sin(island.angle),dx=x-island.x,dz=z-island.z;return(Math.hypot((dx*c+dz*s)/island.rx,(-dx*s+dz*c)/island.rz)-1)*island.rz;}
+// A bounded coarse atlas plus a moving 4 m height patch. Real DEMs are the
+// authority for CPU queries and both rendering levels. No compressed cities.
 export class CaliforniaTerrain extends TerrainData {
-	constructor() {
-		super( REGION.seed, { resolution: 4096 } );
-		this.profile = 'california';
-		this.paths = []; 
-		this.clearings = PLACES.filter( p => ! p.water ).map( p => ( { x: p.x, z: p.z, radius: p.kind === 'grove' ? 20 : 30 } ) );
-		this.landArea = this.heights.reduce( ( count, h ) => count + Number( h > 0 ), 0 ) * this.texel ** 2;
-	}
-
-	pathDistance(x,z) { return Math.min(...(this.roadCells?.get(`${Math.floor(x/64)},${Math.floor(z/64)}`)||[]).map(r=>r.nearest(x,z).distance)) - 5; }
-
-	coastDistance( x, z ) {
-		const harbor = 1 - smoothstep( 150, 420, Math.abs( x ) );
-  let d = coastFieldAt(x,z), island = null;
-  if(z>400) { const near=REGION.islands.reduce((a,b)=>Math.hypot(x-a.x,z-a.z)<Math.hypot(x-b.x,z-b.z)?a:b); if(Math.hypot(x-near.x,z-near.z)<Math.max(near.rx,near.rz)*1.5) island=near; }
-  // Keep the little harbor walkable while smoothly settling its original pier.
-  const dockBlend=(1-smoothstep(100,240,Math.abs(x)))*(1-smoothstep(100,240,Math.abs(z+42)));
-  d=d*(1-dockBlend)+(z+42)*dockBlend;
-  d+=this.noise.noise(x/90,z/90)*4*(1-dockBlend);
-
-		// A navigable indentation for the painted grotto, still open to the channel.
-		const grotto = PLACES.find( p => p.id === 'grotto' );
-		if ( Math.abs( x - grotto.x ) < 105 && Math.abs( z - grotto.z ) < 135 ) d = Math.max( d, 60 - Math.hypot( ( x - grotto.x ) * 0.8, ( z - grotto.z ) * 0.6 ) );
-		return { d, beachZone: harbor, island };
-	}
-
-	heightFn( x, z ) {
-		const { d, beachZone, island } = this.coastDistance( x, z );
-		const n = this.noise;
-		if ( d >= 0 ) return { h: - Math.min( 100, d * ( 0.075 + smoothstep(60,160,d)*0.045 ) ) + n.noise( x / 140, z / 140 ) * Math.min( 2, d * 0.015 ), rock: 0.12 };
-		const e = - d;
-		const broad = n.fbm( x / 480, z / 480, 3 );
-		const ridges = 1 - Math.abs( n.fbm( x / 290 + 2, z / 370, 3 ) );
-		const cliff = island ? 0.62 : 0.26 * ( 1 - beachZone ) + 0.09 * beachZone;
-		let h = Math.min( e * cliff, 7 + e * 0.065 );
-		const {lat}=unproject(x,z);
-		// Blend climate regions across broad transitions, avoiding latitude seams.
-		let mainlandSummit=200+140*smoothstep(34.35,34.85,lat);
-		mainlandSummit+=(170-mainlandSummit)*smoothstep(36.75,37.25,lat);
-		mainlandSummit+=(260-mainlandSummit)*smoothstep(39.05,39.55,lat);
-		const summit=island?island.summit:mainlandSummit;
-		const rise = smoothstep( island ? 40 : 130, island ? Math.min(380,island.rz*.85) : 600, e );
-		h += rise * summit * ( 0.3 + 0.7 * ridges ) * ( 0.9 + broad * 0.3 );
-		h += n.noise( x / 36, z / 36 ) * 3 * smoothstep( 25, 100, e );
-		const rock = ( island && e < 50 ? 0.8 : 0.15 ) + smoothstep( 220, 480, h ) * 0.35;
-		return { h, rock };
-	}
-
-	generate() {
-		const started = performance.now();
-		this.size = REGION.size; this.texel = this.size / this.res; this.origin = - this.size / 2;
-		const n = this.res / 2, step = this.size / n, h = new Float32Array( n * n );
-		for ( let j = 0; j < n; j ++ ) for ( let i = 0; i < n; i ++ ) {
-			const x = this.origin + ( i + 0.5 ) * step, z = this.origin + ( j + 0.5 ) * step;
-			const edge = Math.min( i, j, n - 1 - i, n - 1 - j ) * step;
-			h[ j * n + i ] = - 100 + ( this.heightFn( x, z ).h + 100 ) * smoothstep( 0, 210, edge );
-		}
-		this.heights = upsample2( h, n, true );
-		const H = this.heights, R = this.res;
-		for ( let j = 1; j < R - 1; j ++ ) for ( let i = 1; i < R - 1; i ++ ) {
-			const k = j * R + i, y = H[ k ];
-			const slope = Math.hypot( H[ k + 1 ] - H[ k - 1 ], H[ k + R ] - H[ k - R ] ) / ( this.texel * 2 );
-			this.rock[ k ] = clamp( smoothstep( 0.18, 0.65, slope ) * 0.8 + smoothstep( 220, 480, y ) * 0.22, 0, 1 );
-			this.sand[ k ] = Math.round( 255 * ( 1 - smoothstep( 4, 13, y ) ) * ( 1 - this.rock[ k ] ) );
-			this.seagrass[ k ] = y < - 1.5 && y > - 16 ? Math.round( 150 * ( 1 - this.rock[ k ] ) ) : 0;
-			this.rubble[ k ] = y < 0 && y > - 30 ? Math.round( this.rock[ k ] * 210 ) : 0;
-			this.gully[ k ] = Math.round( 80 * smoothstep( 0.08, 0.25, slope ) );
-		}
-		for(const town of SETTLEMENTS) {
-   const anchor=project(town.lon,town.lat);town.x=anchor.x;town.z=anchor.z;
-   const oldX=town.x,oldZ=town.z;let best=null;
-   for(let ring=0;ring<=360;ring+=24)for(let a=0;a<(ring?24:1);a++){
-    const x=oldX+Math.cos(a/24*Math.PI*2)*ring,z=oldZ+Math.sin(a/24*Math.PI*2)*ring,d=-coastFieldAt(x,z);
-    if(d<town.radius+38||d>INLAND+200)continue;
-    const score=ring+Math.abs(this.heightAt(x,z)-18)*.4;
-    if(!best||score<best.score)best={x,z,score};
-   }
-   if(best){town.x=best.x;town.z=best.z;}
-   town.level=Math.max(5,this.heightAt(town.x,town.z));
-   this.flatten(town.x,town.z,town.radius+20,town.level,90);
-   for(const story of CALIFORNIA_STORIES)if(story.site===town.id){story.x=town.x-3;story.z=town.z+9;}
+ constructor(){
+  super(REGION.seed,{resolution:2048});this.profile='california';this.paths=[];
+  this.clearings=PLACES.filter(p=>!p.water).map(p=>({x:p.x,z:p.z,radius:20}));
+  this.landArea=this.heights.reduce((n,h)=>n+(h>0),0)*this.texel**2;
+ }
+ coastDistance(x,z){
+  let d=coastFieldAt(x,z);
+  const blend=(1-smoothstep(140,320,Math.abs(x)))*(1-smoothstep(120,330,Math.abs(z+42)));
+  d=d*(1-blend)+(z+42)*blend;
+  return{d,beachZone:blend,island:null};
+ }
+ rawHeight(x,z){
+  let h=sampleElevation(x,z);
+  // Retain the original hand-crafted starter pier in a small, smooth pad.
+  const blend=(1-smoothstep(140,350,Math.abs(x)))*(1-smoothstep(140,360,Math.abs(z+42)));
+  if(blend){const d=z+42;const harbor=d>0?-Math.min(70,d*.14):Math.min(8,-d*.10);h+=(harbor-h)*blend;}
+  return h;
+ }
+ heightAt(x,z){
+  let h=this.rawHeight(x,z);
+  for(const pad of this.pads||[]){const d=Math.hypot(x-pad.x,z-pad.z);if(d<pad.radius+pad.falloff)h+=(pad.height-h)*(1-smoothstep(pad.radius,pad.radius+pad.falloff,d));}
+  let local=null;
+  for(const route of this.roadCells?.get(`${Math.floor(x/64)},${Math.floor(z/64)}`)||[]){const near=route.nearest(x,z);if(!local||near.distance<local.distance)local={...near,route};}
+  if(local&&local.distance<20){const y=local.route.sample(local.s,1,0).y;h+=(y-h)*(1-smoothstep(9,20,local.distance));}
+  const road=this.streets?.surfaceAt(x,z);
+  if(road&&!road.bridge){const blend=1-smoothstep(road.width/2,road.width/2+5,road.distance);h+=(road.height-h)*blend;}
+  if(x> -247200&&x< -246400&&z> -383200&&z< -380200){
+   const bridge=this.streets?.surfaceAt(x,z,true);
+   if(bridge?.route.name==='Golden Gate Bridge'&&h>bridge.height)h+=(bridge.height-h)*(1-smoothstep(bridge.width/2,bridge.width/2+5,bridge.distance));
   }
-		// Settle small pads for landmarks/characters into the terrain before the
-		// vegetation, shore field, normals and GPU textures are derived.
-		for ( const p of PLACES ) if ( ! p.water && p.id !== 'harbor' && p.kind !== 'town' ) {
-			const y = Math.max( 2.5, this.heightAt( p.x, p.z ) );
-			this.flatten( p.x, p.z, p.kind === 'lighthouse' ? 20 : 12, y, 24 );
-		}
-		this.coastalRoute = new CoastalRoute();
-  this.routes=[this.coastalRoute];
-  this.highway=new CoastalRoute(COAST_DRIVE,{id:'pacific-drive',linear:true});this.routes.push(this.highway);
+  return h;
+ }
+ heightFn(x,z){return{h:this.heightAt(x,z),rock:.15};}
+ flatten(x,z,radius,height,falloff=4){this.pads.push({x,z,radius,height,falloff});this.localRevision=(this.localRevision||0)+1;this.boundsCache?.clear();}
+ pathDistance(x,z){
+  let d=this.streets?.surfaceAt(x,z);let distance=d?d.distance-d.width/2:Infinity;
+  for(const route of this.roadCells?.get(`${Math.floor(x/64)},${Math.floor(z/64)}`)||[])distance=Math.min(distance,route.nearest(x,z).distance-5);
+  return distance;
+ }
+ groundHeight(x,z,maxY=Infinity){const road=this.streets?.surfaceAt(x,z,true);let h=road?.bridge&&road.distance<road.width/2&&road.height<=maxY?Math.max(this.heightAt(x,z),road.height):this.heightAt(x,z);const deck=goldenGateDeck(x,z);if(deck!==null&&deck<=maxY)h=Math.max(h,deck);for(const r of this.stuntRamps||[])h=Math.max(h,rampHeight(r,x,z));return h;}
+ generate(){
+  const started=performance.now();this.boundsCache=new Map();this.roadCells=null;this.pads=[];this.size=REGION.size;this.texel=this.size/this.res;this.origin=-this.size/2;
+  const R=this.res,H=this.heights;
+  for(let j=0;j<R;j++)for(let i=0;i<R;i++)H[j*R+i]=this.rawHeight(this.origin+(i+.5)*this.texel,this.origin+(j+.5)*this.texel);
+  for(let j=1;j<R-1;j++)for(let i=1;i<R-1;i++){
+   const k=j*R+i,y=H[k],slope=Math.hypot(H[k+1]-H[k-1],H[k+R]-H[k-R])/(this.texel*2);
+   this.rock[k]=clamp(smoothstep(.2,.7,slope)*.8,0,1);this.sand[k]=255*(1-smoothstep(3,10,y));this.seagrass[k]=y< -1.5&&y> -16?120:0;
+  }
+  this.coastalRoute=new CoastalRoute();this.routes=[this.coastalRoute];this.highway=null;
   for(const town of SETTLEMENTS){
-   const r=town.radius*.75,c=.7;
-   const stops=[[-r,-r*c],[-r*.6,-r],[r*.6,-r],[r,-r*c],[r,r*c],[r*.6,r],[-r*.6,r],[-r,r*c]].map(([x,z])=>[x+town.x,z+town.z]);
-   town.route=new CoastalRoute(stops,{id:town.id});this.routes.push(town.route);
+   town.level=Math.max(3,this.heightAt(town.x,town.z));
+   if(['san-francisco','los-angeles'].includes(town.id))continue;
+   this.flatten(town.x,town.z,town.radius+20,town.level,90);
+   const r=town.radius*.75;town.route=new CoastalRoute([[-r,-r],[r,-r],[r,r],[-r,r]].map(([x,z])=>[x+town.x,z+town.z]),{id:town.id});
+   this.routes.push(town.route);
   }
-  for(let pass=0;pass<3;pass++)for(const route of this.routes)gradeCoastalRoad(this,route);
-  this.inlandBand=INLAND;
+  for(const route of this.routes){
+   const n=route.points.length-1,raw=route.points.slice(0,n).map(p=>this.heightAt(p.x,p.z));
+   const h=raw.map((_,i)=>{let v=0;for(let j=-6;j<=6;j++)v+=raw[(i+j+n)%n];return Math.max(3,v/13);});
+   for(let pass=0;pass<5;pass++)for(const dir of[1,-1])for(let k=0;k<n;k++){const i=dir>0?k:n-1-k,j=(i-dir+n)%n;h[i]=Math.min(h[i],h[j]+Math.hypot(route.points[i].x-route.points[j].x,route.points[i].z-route.points[j].z)*.25);}
+   route.points.forEach((p,i)=>p.y=h[i%n]);
+  }
   this.roadCells=new Map();
-  for(const route of this.routes)for(const key of route.cells.keys()){
-   if(!this.roadCells.has(key))this.roadCells.set(key,[]);this.roadCells.get(key).push(route);
-  }
-		this.timings.total = performance.now() - started;
-	}
+  for(const route of this.routes)for(const key of route.cells.keys()){if(!this.roadCells.has(key))this.roadCells.set(key,[]);this.roadCells.get(key).push(route);}
+  this.inlandBand=INLAND;this.timings.total=performance.now()-started;
+ }
+ boundsFor(x0,z0,x1,z1){
+  const key=`${x0},${z0},${x1-x0}`;const cached=this.boundsCache.get(key);if(cached)return cached;
+  const b=super.boundsFor(x0,z0,x1,z1);
+  // The coarse pyramid must enclose detailed DEM peaks and road cuts too.
+  if(x1-x0<8192){for(const x of[x0,(x0+x1)/2,x1])for(const z of[z0,(z0+z1)/2,z1]){const h=this.heightAt(x,z);b[0]=Math.min(b[0],h-30);b[1]=Math.max(b[1],h+60);}}
+  if(this.boundsCache.size>50000)this.boundsCache.clear();this.boundsCache.set(key,b);return b;
+ }
 }

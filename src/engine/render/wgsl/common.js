@@ -32,8 +32,9 @@ fn viewDepth( d: f32 ) -> f32 {
 // uv (0..1, y down) + depth -> world / view position
 fn ndcFromUv( uv: vec2f, d: f32 ) -> vec4f { return vec4f( uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, d, 1.0 ); }
 fn worldFromDepth( uv: vec2f, d: f32 ) -> vec3f {
-	let p = frame.invViewProj * ndcFromUv( uv, d );
-	return p.xyz / p.w;
+	let ndc=ndcFromUv(uv,d)-vec4f(frame.jitter,0.0,0.0);
+ let p=frame.invProj*ndc;
+ return frame.cameraPos+(frame.invView*vec4f(p.xyz/p.w,0.0)).xyz;
 }
 fn viewFromDepth( uv: vec2f, d: f32 ) -> vec3f {
 	let p = frame.invProj * ndcFromUv( uv, d );
@@ -41,8 +42,10 @@ fn viewFromDepth( uv: vec2f, d: f32 ) -> vec3f {
 }
 // world direction of the camera ray through uv
 fn viewRay( uv: vec2f ) -> vec3f {
-	let p = frame.invViewProj * ndcFromUv( uv, 0.5 );
-	return normalize( p.xyz / p.w - frame.cameraPos );
+	// Reconstruct a direction before adding any world translation. Subtracting
+ // two 400 km coordinates at the near plane quantizes rays into visible tiles.
+ let p=frame.invProj*(ndcFromUv(uv,0.5)-vec4f(frame.jitter,0.0,0.0));
+ return normalize((frame.invView*vec4f(p.xyz/p.w,0.0)).xyz);
 }
 // world position -> uv (y down) and depth
 fn projectToUv( P: vec3f ) -> vec3f {

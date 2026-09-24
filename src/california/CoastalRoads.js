@@ -38,7 +38,7 @@ export class CoastalRoute {
   const a=this.points[lo],b=this.points[lo+1],t=(s-this.lengths[lo])/(this.lengths[lo+1]-this.lengths[lo]);
   const ta=this.tangents[lo],tb=this.tangents[lo+1];
   const heading=Math.atan2(ta.x+(tb.x-ta.x)*t,ta.z+(tb.z-ta.z)*t)+(direction<0?Math.PI:0);
-  return {x:a.x+(b.x-a.x)*t-Math.cos(heading)*offset,z:a.z+(b.z-a.z)*t+Math.sin(heading)*offset,heading,s};
+  return {x:a.x+(b.x-a.x)*t-Math.cos(heading)*offset,z:a.z+(b.z-a.z)*t+Math.sin(heading)*offset,y:a.y+(b.y-a.y)*t,heading,s};
  }
  nearest(x,z,full=false) {
   const candidates=full?this.points.slice(0,-1).map((_,i)=>i):this.cells.get(`${Math.floor(x/CELL)},${Math.floor(z/CELL)}`)||[];

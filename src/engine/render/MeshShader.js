@@ -189,10 +189,15 @@ ${ fetch }#if !HAS_POSITION
 	o.normal = wn;
 	o.uv = v.uv;
 	o.color = v.color;
-	o.clip = frame.viewProj * vec4f( wp, 1.0 );
+	var relative=(wp-frame.cameraOrigin)-frame.cameraOffset;
+ if(!v.useWorld){relative=(v.model*vec4f(v.position,0.0)).xyz+(v.model[3].xyz-frame.cameraOrigin)-frame.cameraOffset+v.worldOffset;}
+ let relativeClip=frame.relativeViewProj*vec4f(relative,1.0);
+ o.clip=relativeClip+vec4f(frame.jitter*relativeClip.w,0.0,0.0);
 #if PASS_MAIN
-	o.curClip = frame.viewProjNoJitter * vec4f( wp, 1.0 );
-	o.prevClip = frame.prevViewProjNoJitter * vec4f( pwp, 1.0 );
+	o.curClip=relativeClip;
+ var previousRelative=(pwp-frame.prevCameraOrigin)-frame.prevCameraOffset;
+ if(!v.useWorld){previousRelative=(v.prevModel*vec4f(v.position,0.0)).xyz+(v.prevModel[3].xyz-frame.prevCameraOrigin)-frame.prevCameraOffset+select(v.prevWorldOffset,v.worldOffset,v.prevWorldOffset.x>1e29);}
+ o.prevClip=frame.prevRelativeViewProj*vec4f(previousRelative,1.0);
 #endif
 	return o;
 }

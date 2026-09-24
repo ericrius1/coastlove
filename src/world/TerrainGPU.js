@@ -87,6 +87,7 @@ export class TerrainGPU {
 			res: [ 'f32', res ],
 			shoreRes: [ 'f32', 1 ],
 			nearShore: [ 'vec4f', new Vector4(0,0,0,1) ],
+            localGround: [ 'vec4f', new Vector4(0,0,0,1) ],
 			sunBake: [ 'vec3f', new Vector3( 0, 1, 0 ) ],
 			sunBaked: [ 'f32', 0 ], // 0 until the first bake: everything lit
 		}, { label: 'terrainParams' } );
@@ -100,12 +101,15 @@ export class TerrainGPU {
 		if ( shoreField ) this.setShoreField( shoreField );
 		this._initSunShadow();
 
+        this.localGroundTexture=dataTexture(new Float32Array(4),1,1,'rgba32float','localTerrain');
+
 		this.module = new ShaderModule( {
 			name: 'terrain',
 			deps: [ commonModule ],
 			uniforms: this.uniforms,
 			bindings: {
-				terrainHeightTex: { texture: this.heightTexture, sampleType: 'unfilterable-float' },
+				terrainLocalGroundTex: {texture:()=>this.localGroundTexture,sampleType:'unfilterable-float'},
+                terrainHeightTex: { texture: this.heightTexture, sampleType: 'unfilterable-float' },
 				terrainNormalTex: { texture: this.normalTexture },
 				terrainSplatTex: { texture: this.splatTexture },
 				terrainDetailTex: detailBinding(),
@@ -127,6 +131,12 @@ export class TerrainGPU {
 		this.timings = { ...maps.ms, detail: this.detailTexture.userData.ms, total: performance.now() - t0 };
 
 	}
+
+ setLocalTerrain(f){
+  if(this.localGroundTexture.width!==f.res){this.localGroundTexture.destroy();this.localGroundTexture=dataTexture(f.data,f.res,f.res,'rgba32float','localTerrain');}
+  else this.localGroundTexture.upload(f.data);
+  this.uniforms.fields.localGround.value.set(f.x,f.z,f.size,f.res);
+ }
 
  setNearShoreField(f){
   if(this.nearShoreTexture.width!==f.res){this.nearShoreTexture.destroy();this.nearShoreTexture=dataTexture(f.data,f.res,f.res,'rgba32float','localShoreField');}
@@ -231,6 +241,18 @@ fn terrainUvOf( xz: vec2f ) -> vec2f {
 	return ( xz - terrainParams.origin ) / terrainParams.size;
 }
 
+fn terrainLocalWeight(xz:vec2f)->f32 {
+ let p=terrainParams.localGround;
+ if(p.z<1.0){return 0.0;}
+ let uv=(xz-p.xy)/p.z;
+ return smoothstep(0.0,0.12,min(min(uv.x,uv.y),min(1.0-uv.x,1.0-uv.y)));
+}
+fn terrainLocalSample(xz:vec2f)->vec4f {
+ let p=terrainParams.localGround;
+ let f=clamp((xz-p.xy)/max(1.0,p.z)*p.w-0.5,vec2f(0.0),vec2f(max(0.0,p.w-1.001)));
+ let i=vec2i(floor(f));let t=fract(f);let mx=vec2i(i32(p.w)-1);
+ return mix(mix(textureLoad(terrainLocalGroundTex,i,0),textureLoad(terrainLocalGroundTex,min(i+vec2i(1,0),mx),0),t.x),mix(textureLoad(terrainLocalGroundTex,min(i+vec2i(0,1),mx),0),textureLoad(terrainLocalGroundTex,min(i+vec2i(1,1),mx),0),t.x),t.y);
+}
 // exact bilinear height at world xz (matches TerrainData.heightAt)
 fn terrainHeightAt( xz: vec2f ) -> f32 {
 	let res = terrainParams.res;
@@ -246,18 +268,24 @@ fn terrainHeightAt( xz: vec2f ) -> f32 {
 	let h = mix( mix( a, b, t.x ), mix( c, d, t.x ), t.y );
 	// outside the domain: deep ocean floor
 	let outside = f.x < 0.0 || f.y < 0.0 || f.x > res - 1.0 || f.y > res - 1.0;
-	return select( h, -90.0, outside );
+	let w=terrainLocalWeight(xz);
+ if(w>0.0){return mix(h,terrainLocalSample(xz).x,w);}
+ return select( h, -90.0, outside );
 }
 
 // filtered normal (xz components), rock mask, ambient occlusion
 fn terrainNormalRock( xz: vec2f ) -> vec4f {
 	let s = textureSample( terrainNormalTex, smpLinearClamp, terrainUvOf( xz ) );
-	return vec4f( s.xy * 2.0 - 1.0, s.z, s.w );
+	let w=terrainLocalWeight(xz);
+ if(w>0.0){let n=terrainLocalSample(xz);return mix(vec4f(s.xy*2.0-1.0,s.z,s.w),vec4f(n.yz,n.w,1.0),w);}
+ return vec4f( s.xy * 2.0 - 1.0, s.z, s.w );
 }
 // explicit mip (e.g. in the vertex stage)
 fn terrainNormalRockLevel( xz: vec2f, level: f32 ) -> vec4f {
 	let s = textureSampleLevel( terrainNormalTex, smpLinearClamp, terrainUvOf( xz ), level );
-	return vec4f( s.xy * 2.0 - 1.0, s.z, s.w );
+	let w=terrainLocalWeight(xz);
+ if(w>0.0){let n=terrainLocalSample(xz);return mix(vec4f(s.xy*2.0-1.0,s.z,s.w),vec4f(n.yz,n.w,1.0),w);}
+ return vec4f( s.xy * 2.0 - 1.0, s.z, s.w );
 }
 fn terrainNormalAt( xz: vec2f ) -> vec3f {
 	let nr = terrainNormalRockLevel( xz, 0.0 );
@@ -267,10 +295,13 @@ fn terrainNormalAt( xz: vec2f ) -> vec3f {
 // loose sand, worn ground / paths, gullies (land) or seagrass (seabed), seabed rubble (the
 // eroded beach scarp face on land)
 fn terrainSplat( xz: vec2f ) -> vec4f {
-	return textureSample( terrainSplatTex, smpLinearClamp, terrainUvOf( xz ) );
+	return terrainSplatLevel(xz,0.0);
 }
 fn terrainSplatLevel( xz: vec2f, level: f32 ) -> vec4f {
-	return textureSampleLevel( terrainSplatTex, smpLinearClamp, terrainUvOf( xz ), level );
+	let s=textureSampleLevel( terrainSplatTex, smpLinearClamp, terrainUvOf( xz ), level );
+ let w=terrainLocalWeight(xz);
+ if(w>0.0){let h=terrainLocalSample(xz).x;return mix(s,vec4f(1.0-smoothstep(3.0,11.0,h),0.0,0.05,0.0),w);}
+ return s;
 }
 
 // shore field: (T, dirX, dirZ, exposure), bilinear via loads (float32 data)

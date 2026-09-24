@@ -60,7 +60,11 @@ export class IslandLife {
 		this.random = mulberry32( 8304 );
 		this.time = 0;
 		this.residents = (california ? CALIFORNIA_STORIES : STORIES).map( ( story ) => {
-			const position = findSafeSpot( terrain, colliders, story.x, story.z, false, 180 );
+			let x=story.x,z=story.z;
+   if(story.site&&terrain.streets?.inCity(x,z)){
+    const near=terrain.streets.nearest(x,z,300);if(near){const p=near.route.sample(near.s,1,0);x=p.x+Math.cos(p.heading)*(near.route.width/2+1);z=p.z-Math.sin(p.heading)*(near.route.width/2+1);}
+   }else if(story.site){x+=12;z+=8;}
+   const position = findSafeSpot( terrain, colliders, x, z, false, 180 );
 			if ( ! position ) throw new Error( `No safe home for ${ story.name }` );
 			const vendor = new Vendor( { name: story.name, position, radius: 4, look: { shirt: story.color, apron: story.color } } );
 			scene.add( vendor.group );

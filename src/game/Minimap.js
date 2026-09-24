@@ -207,7 +207,7 @@ export class Minimap {
 		};
 
 		const d = B.img.data;
-		const end = Math.min( N, B.row + ROWS_PER_FRAME );
+		const end = Math.min( N, B.row + (T.size>100000?4:ROWS_PER_FRAME) );
 		for ( let py = B.row; py < end; py ++ ) for ( let px = 0; px < N; px ++ ) {
 
 			const x = this.mapX0 + ( px + 0.5 ) / PPM, z = this.mapZ0 + ( py + 0.5 ) / PPM;
@@ -292,6 +292,16 @@ export class Minimap {
   const terrain=this.game.app.terrainData;ctx.strokeStyle='#e4d1a0';ctx.lineWidth=2;
   for(const route of terrain.routes||[]){ctx.beginPath();let started=false;for(const p of route.points){const [x,y]=P(p.x,p.z);if(x<0||y<0||x>N||y>N){started=false;continue;}if(started)ctx.lineTo(x,y);else{ctx.moveTo(x,y);started=true;}}ctx.stroke();}
   ctx.fillStyle='#a1a995';for(const town of this.game.app.coastalTowns?.groups||[])for(const b of town.boxes){const [x,y]=P(b.x,b.z);if(x<0||y<0||x>N||y>N)continue;ctx.fillRect(x-b.half.x*PPM,y-b.half.z*PPM,b.half.x*2*PPM,b.half.z*2*PPM);}
+  const streets=terrain.streets;
+  if(streets){ctx.strokeStyle='#e4d7b8';
+   for(let j=Math.floor(this.mapZ0/512);j<=Math.floor((this.mapZ0+EXT)/512);j++)for(let i=Math.floor(this.mapX0/512);i<=Math.floor((this.mapX0+EXT)/512);i++)for(const segment of streets.drawCells.get(`${i},${j}`)||[]){
+    const a=P(segment.a.x,segment.a.z),b=P(segment.b.x,segment.b.z);ctx.lineWidth=Math.max(1.2,segment.route.width*PPM);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
+   }
+   ctx.fillStyle='#adb2a1';for(const cell of this.game.app.realCities?.cells.values()||[])for(const building of cell.buildings){
+    if(Math.abs(building.cx-this.mapX0-EXT/2)>EXT/2+50||Math.abs(building.cz-this.mapZ0-EXT/2)>EXT/2+50)continue;
+    ctx.beginPath();building.p.forEach(([x,z],i)=>i?ctx.lineTo(...P(x,z)):ctx.moveTo(...P(x,z)));ctx.closePath();ctx.fill();
+   }
+  }
   // the pier and its head
 		const W = WORLD.pier;
 		ctx.fillStyle = '#d9c7a0';
@@ -342,7 +352,7 @@ export class Minimap {
 		const x = cam.position.x, z = cam.position.z;
 
 		// zoom: close on foot, wider at sea
-		const want = p.mode === 'boat' || p.mode === 'deck' || p.mode === 'swim' ? 240 : 110;
+		const want = p.mode === 'car' ? 200 : p.mode === 'plane' ? 900 : p.mode === 'boat' || p.mode === 'deck' || p.mode === 'swim' ? 240 : 110;
 		this.radiusM += ( want - this.radiusM ) * ( 1 - Math.exp( - dt * 1.5 ) );
 		const kpm = R / this.radiusM; // css px per metre
 

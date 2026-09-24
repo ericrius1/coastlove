@@ -9,7 +9,8 @@
     "test:exploration": "node test/exploration.mjs",
     "test:california": "node test/california.mjs && node test/view-distance.mjs && node test/statewide.mjs",
     "test:traffic": "node test/traffic.mjs",
-    "test:controls": "node test/controls.mjs"
+    "test:controls": "node test/controls.mjs",
+    "test:metric": "node test/metric-world.mjs && node test/arcade-car.mjs && node test/large-world.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.0",
@@ -17,5 +18,9 @@
   },
   "license": "MIT",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "earcut": "^3.2.3",
+    "proj4": "^2.22.0"
+  }
 }

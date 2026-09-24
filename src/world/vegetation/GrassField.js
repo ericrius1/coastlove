@@ -399,18 +399,20 @@ function buildPatch( level, clumps, seed = 7 ) {
 
 export class GrassField {
 
-	constructor( { terrain, mask } ) {
+	constructor( { terrain, mask, site } ) {
 
-		this.terrain = terrain;
-		const res = terrain.res;
-		const maskData = mask.data, mres = mask.res;
+		this.terrain = terrain;this.site=site;
+		this.local = terrain.size > 100000;
+        const res = this.local ? 256 : terrain.res;
+        const maskData = this.local ? new Uint8Array(256*256*4) : mask.data, mres = this.local ? 256 : mask.res;
+        this.localHeights = this.local ? new Float32Array(256*256) : null;
 
 		// terrain heights (float, loaded + bilinearly filtered manually) and density mask
-		this.heightTex = new Texture( { label: 'grassHeights', width: res, height: res, format: 'r32float', data: terrain.heights } );
+		this.heightTex = new Texture( { label: 'grassHeights', width: res, height: res, format: 'r32float', data: this.localHeights || terrain.heights } );
 		// three-style handle: `heightTex.needsUpdate = true` re-uploads terrain.heights (Vegetation.refreshTerrain)
 		Object.defineProperty( this.heightTex, 'needsUpdate', { set: ( v ) => {
 
-			if ( v ) this.heightTex.upload( terrain.heights );
+			if ( v && !this.local ) this.heightTex.upload( terrain.heights );
 
 		} } );
 		this.maskTex = new Texture( { label: 'grassMask', width: mres, height: mres, format: 'rgba8unorm', data: maskData, sampler: 'linearClamp' } );
@@ -418,12 +420,12 @@ export class GrassField {
 		// per-cell occupancy + height range (for skipping empty cells and frustum tests)
 		const cellsPerSide = Math.ceil( terrain.size / CELL );
 		this.cellsPerSide = cellsPerSide;
-		this.cellFlags = new Uint8Array( cellsPerSide * cellsPerSide );
-		this.cellMinY = new Float32Array( cellsPerSide * cellsPerSide );
-		this.cellMaxY = new Float32Array( cellsPerSide * cellsPerSide );
+		this.cellFlags = new Uint8Array( this.local ? 0 : cellsPerSide * cellsPerSide );
+		this.cellMinY = new Float32Array( this.local ? 0 : cellsPerSide * cellsPerSide );
+		this.cellMaxY = new Float32Array( this.local ? 0 : cellsPerSide * cellsPerSide );
 		const mpc = CELL / ( terrain.size / mres ); // mask texels per cell
 		const hpc = CELL / terrain.texel; // height texels per cell
-		for ( let cj = 0; cj < cellsPerSide; cj ++ ) {
+		for ( let cj = 0; cj < (this.local ? 0 : cellsPerSide); cj ++ ) {
 
 			for ( let ci = 0; ci < cellsPerSide; ci ++ ) {
 
@@ -529,8 +531,22 @@ export class GrassField {
 
 	}
 
+ refreshLocal(camera) {
+  const cx=Math.round(camera.position.x/128)*128,cz=Math.round(camera.position.z/128)*128;
+  if(this.localCenter?.x===cx&&this.localCenter?.z===cz)return;
+  const t=this.terrain,N=256,size=768,step=size/N,x0=cx-size/2,z0=cz-size/2,mask=new Uint8Array(N*N*4);
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){
+   const x=x0+(i+.5)*step,z=z0+(j+.5)*step,k=j*N+i,h=t.heightAt(x,z);this.localHeights[k]=h;
+   if(h<2||t.pathDistance(x,z)<5||t.streets?.inCity(x,z)||this.site?.obstacleDist(x,z)<3)continue;
+   mask[k*4+1]=150;mask[k*4]=h<8?80:0;
+  }
+  this.heightTex.upload(this.localHeights);this.maskTex.upload(mask);
+  this.material.uniforms.grassDomain.value.set(x0,z0,size,step);this.localCenter={x:cx,z:cz};
+ }
+
 	// Recompute visible cells (cheap; skipped when the camera did not change).
 	update( camera ) {
+        if(this.local)this.refreshLocal(camera);
 
 		// skip when the camera has not moved / turned noticeably
 		const e = camera.matrixWorld.elements;
@@ -559,15 +575,17 @@ export class GrassField {
 			for ( let i = i0; i <= i1; i ++ ) {
 
 				const c = j * n + i;
-				if ( ! this.cellFlags[ c ] ) continue;
+				if ( !this.local && ! this.cellFlags[ c ] ) continue;
 				const x0 = t.origin + i * CELL, z0 = t.origin + j * CELL;
 				// nearest point of the cell (horizontal, like the shader's LOD distance)
 				const dx = Math.max( x0 - cx, 0, cx - x0 - CELL );
 				const dz = Math.max( z0 - cz, 0, cz - z0 - CELL );
 				const d = Math.hypot( dx, dz );
 				if ( d > R_FAR ) continue;
-				this._box.min.set( x0, this.cellMinY[ c ] - 0.5, z0 );
-				this._box.max.set( x0 + CELL, this.cellMaxY[ c ] + 1.8, z0 + CELL );
+				const ground=this.local?t.heightAt(x0+CELL/2,z0+CELL/2):0;
+                if(this.local&&(ground<1||t.streets?.inCity(x0,z0)))continue;
+                this._box.min.set(x0,this.local?ground-20:this.cellMinY[c]-.5,z0);
+                this._box.max.set(x0+CELL,this.local?ground+22:this.cellMaxY[c]+1.8,z0+CELL);
 				if ( ! this._frustum.intersectsBox( this._box ) ) continue;
 				if ( d < R_NEAR && nc < near.max ) {
 
@@ -696,10 +714,11 @@ fn vegGrassTierFade( tier: f32, d: f32, cut: f32 ) -> f32 {
 function createGrassMaterial( field ) {
 
 	const t = field.terrain;
-	const res = t.res;
+	const res = field.local ? 256 : t.res;
 
 	const mat = new Material( {
 		name: 'veg-grass',
+        uniforms:{grassDomain:['vec4f',new THREE.Vector4(t.origin,t.origin,t.size,t.texel)]},
 		side: 'double',
 		roughness: 0.8,
 		metalness: 0,
@@ -729,7 +748,7 @@ function createGrassMaterial( field ) {
 	let kind = blade.y;
 	let bRnd = blade.z;
 
-	let m = textureSampleLevel( grassMask, smpLinearClamp, ( xz - ${ f( t.origin ) } ) / ${ f( t.size ) }, 0.0 );
+	let m = textureSampleLevel( grassMask, smpLinearClamp, ( xz - mat.grassDomain.xy ) / mat.grassDomain.z, 0.0 );
 	let isGrass = kind < 0.5;
 	let isOat = kind > 0.5 && kind < 2.5;
 	let lush = m.g;
@@ -780,7 +799,7 @@ function createGrassMaterial( field ) {
 	let cy = cos( yaw ); let sy = sin( yaw );
 
 	// terrain height (float texels loaded and bilinearly filtered manually)
-	let hfp = ( xz - ${ f( t.origin ) } ) / ${ f( t.texel ) } - 0.5;
+	let hfp = ( xz - mat.grassDomain.xy ) / mat.grassDomain.w - 0.5;
 	let hfi = floor( hfp );
 	let hfr = hfp - hfi;
 	let ij = vec2i( clamp( hfi, vec2f( 0.0 ), vec2f( ${ f( res - 2 ) } ) ) );

@@ -4,7 +4,7 @@ import { safeAt } from './Navigation.js';
 // One E press owns exactly one interaction, before Player's legacy deck controls.
 export class VehicleInteractions {
  constructor(exploration){this.e=exploration;this.app=exploration.app;}
- get available(){const app=this.app,hud=app.game.hud;return !this.e.paused&&!app.freeCam&&!hud?.invOpen&&!hud?.standOpen&&!hud?.catchOpen;}
+ get available(){const app=this.app,hud=app.game.hud;return !(this.e.inputCaptured??this.e.paused)&&!app.freeCam&&!hud?.invOpen&&!hud?.standOpen&&!hud?.catchOpen;}
  nearby(){
   const app=this.app,p=app.player;if(!this.available||!['walk','swim'].includes(p.mode))return null;
   const candidates=[],add=(kind,vehicle,point,reach,height)=>{const d=Math.hypot(point.x-p.position.x,point.z-p.position.z);if(d<reach&&Math.abs(point.y-p.position.y)<height)candidates.push({kind,vehicle,distance:d});};

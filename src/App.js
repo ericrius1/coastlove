@@ -1,3 +1,10 @@
+import {loadCityGreenery} from './california/Vegetation.js';
+import {StuntRamps} from './california/StuntRamps.js';
+import {GoldenGate} from './california/GoldenGate.js';
+import {RealCities} from './california/RealCities.js';
+import {loadRoadData,StreetNetwork} from './california/RealRoads.js';
+import {LocalTerrain} from './california/LocalTerrain.js';
+import {loadElevation} from './california/Elevation.js';
 import { LocalShore } from './california/LocalShore.js';
 import { CoastalTowns } from './california/CoastalTowns.js';
 import { COAST_VIEW } from './california/ViewQuality.js';
@@ -139,13 +146,19 @@ export class App {
 
 		// ---------------------------------------------------------------- island
 		await progress( 0.06, 'Shaping the California coast…' );
-		this.terrainData = new CaliforniaTerrain();
+		await Promise.all([loadElevation(),loadRoadData(),loadCityGreenery()]);
+        this.terrainData = new CaliforniaTerrain();
+        this.terrainData.streets = new StreetNetwork(this.terrainData);
 		this.colliders = new Colliders();
 		// the village flattens building pads into the heightmap: build it before any terrain
 		// data is derived (shore field, GPU textures, meshes)
 		await progress( 0.12, 'Building the village…' );
 		this.village = new Village( { scene, terrain: this.terrainData, colliders: this.colliders } );
 		this.coastalTowns = new CoastalTowns(this);
+        this.realCities = new RealCities(this);
+        await this.realCities.ready;
+        this.goldenGate = new GoldenGate(this);
+        this.stuntRamps = new StuntRamps(this);
 		if ( ! qs.has( 'noVeg' ) ) {
 
 			await progress( 0.14, 'Planting coastal groves…' );
@@ -157,7 +170,8 @@ export class App {
 		await progress( 0.19, 'Rolling in the swell…' );
 		this.shoreField = computeShoreField( this.terrainData, { res: 512, swellDir: [ WORLD.swellDir.x, WORLD.swellDir.y ] } );
 		this.terrainGPU = new TerrainGPU( this.terrainData, this.shoreField );
-		this.localShore = new LocalShore(this);
+		this.localTerrain = new LocalTerrain(this);
+        this.localShore = new LocalShore(this);
 		// terrain and rocks apply the heightfield sun shadow (long hill shadows) in their own lighting
 		this.terrain = new Terrain( { scene, terrainData: this.terrainData, terrainGPU: this.terrainGPU, renderer } );
 		this.rocks = new Rocks( { scene, terrain: this.terrain, village: this.village, colliders: this.colliders } );
@@ -682,7 +696,8 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		// drawn while any part of the view can be under water (the specks above the surface are dropped)
 		this.marineSnow.update( this.camera, this.camera.position.y < ( this.cameraWaterHeight ?? 0 ) + LENS_REACH );
 		this.airMotes.update( dt, this.camera, this.cameraWaterHeight ?? 0 );
-		this.localShore?.update(this.player.position);
+		this.localTerrain?.update(this.player.position);
+        this.localShore?.update(this.player.position);
 		if ( this.shoreSim ) this.shoreSim.update();
 		this.underwaterLighting.update( this.camera );
 		this.breakers.update( this.camera );

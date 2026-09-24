@@ -27,6 +27,7 @@ export class Input {
 		window.addEventListener( 'blur', () => { this.keys.clear(); this.pressed.clear(); this.timeScrub = this.wheel = 0; this.look.x = this.look.y = 0; this.mouseDown = this.rightDown = false; } );
 
 		dom.addEventListener( 'mousedown', ( e ) => {
+            if (this.captured) return;
 
 			if ( e.button === 0 ) {
 				this.mouseDown = true;
@@ -44,6 +45,7 @@ export class Input {
 		} );
 		dom.addEventListener( 'contextmenu', ( e ) => e.preventDefault() );
 		window.addEventListener( 'mousemove', ( e ) => {
+            if (this.captured) return;
 
 			if ( this.keys.has( 'KeyZ' ) ) {
 				if ( this.mouseDown || this.locked ) this.timeScrub += e.movementX / 180;
@@ -60,6 +62,7 @@ export class Input {
   // Capture time gestures over the HUD as well as the canvas. Briefly absorb
   // inertial scroll after releasing Z so it cannot become accidental camera zoom.
   window.addEventListener('wheel',e=>{
+   if(this.captured)return;
    const held=this.keys.has('KeyZ');
    if(!held && !(performance.now()-(this.scrubReleasedAt??-Infinity)<250))return;
    if(e.ctrlKey||e.metaKey)return;
@@ -90,20 +93,20 @@ export class Input {
 
 	down( code ) {
 
-		return this.enabled && this.keys.has( code );
+		return this.enabled && !this.captured && this.keys.has( code );
 
 	}
 
 	// true once per physical key press
 	hit( code ) {
 
-		return this.enabled && this.pressed.has( code );
+		return this.enabled && !this.captured && this.pressed.has( code );
 
 	}
 
 	consumeLook() {
 
-		const l = { x: this.look.x, y: this.look.y };
+		const l = this.captured ? { x: 0, y: 0 } : { x: this.look.x, y: this.look.y };
 		this.look.x = 0;
 		this.look.y = 0;
 		return l;

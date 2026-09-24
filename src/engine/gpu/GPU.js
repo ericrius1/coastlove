@@ -34,7 +34,7 @@ export const GPU = {
 
 		const L = adapter.limits;
 		const want = {
-			maxSampledTexturesPerShaderStage: 32,
+			maxSampledTexturesPerShaderStage: 40,
 			maxSamplersPerShaderStage: 16,
 			maxStorageBuffersPerShaderStage: 10,
 			maxStorageTexturesPerShaderStage: 8,

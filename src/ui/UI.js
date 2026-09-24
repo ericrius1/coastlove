@@ -2140,13 +2140,13 @@ export class UI {
 					<section>
 						<h3>Move</h3>
 						${ row( k( 'E' ), 'Enter / exit car, boat or plane<small>Plane: assisted landing · cars: NPCs resume driving</small>' ) }
-						${ row( k( '1', '2', '3' ), 'Boat / seaplane / safely ashore<small>Number row or numpad</small>' ) }
+						${ row( k( '1', '2', '3', '4' ), 'Boat / seaplane / walk / car<small>Number row or numpad</small>' ) }
 						${ row( k( 'J' ), 'Field notes, stories and picture quality' ) }
 						${ row( k( 'Z' ), 'Hold + two-finger trackpad swipe to scrub time' ) }
 						${ row( wasd, 'Move · car / plane: speed and steering' ) }
-						${ row( mouse, 'Look around · plane: turn and pitch<small>Click the view to capture your trackpad</small>' ) }
-						${ row( k( 'Shift' ), 'Sprint, boat boost' ) }
-						${ row( k( 'Space' ), 'Jump, swim up, plane rise · car: brake' ) }
+						${ row( mouse, 'Look around · plane: turn and pitch · car: steer<small>Click the view to capture your trackpad</small>' ) }
+						${ row( k( 'Shift' ), 'Sprint · vehicle boost' ) }
+						${ row( k( 'Space' ), 'Jump, swim up, plane rise · car: drift' ) }
 						${ row( k( 'C' ), 'Plane descend (terrain clearance stays on)' ) }
 						${ row( k( 'C' ), 'Crouch, dive' ) }
 					</section>
@@ -2199,7 +2199,7 @@ export class UI {
 					<span><span class="tw-wasd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>Move</span>
 					<span><kbd class="tw-kbd-ico">${ icon( 'mouse' ) }</kbd>Look</span>
 					<span><kbd>E</kbd>Interact</span>
-					<span><kbd>1</kbd>Boat <kbd>2</kbd>Plane <kbd>3</kbd>On foot</span>
+					<span><kbd>1</kbd>Boat <kbd>2</kbd>Plane <kbd>3</kbd>On foot <kbd>4</kbd>Car</span>
 					<span><kbd>M</kbd>Map & fast travel</span><span><kbd>J</kbd>Field notes</span>
 					<span><kbd>Z</kbd> + trackpad · scrub time</span><span><kbd>F1</kbd>All controls</span>
 				</div>

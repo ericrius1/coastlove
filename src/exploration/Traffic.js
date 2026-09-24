@@ -1,3 +1,4 @@
+import {stepArcadeCar} from './ArcadeCar.js';
 import { SETTLEMENTS } from '../california/Settlements.js';
 import { Vector3, Euler, Color } from '../engine/index.js';
 import { makeCar, CAR_NAMES } from './CarModel.js';
@@ -19,7 +20,7 @@ export class Traffic {
   for(let i=0;i<16;i++){
    const direction=i%2?-1:1,pose=this.route.sample(starts[i],direction),model=makeCar(i);
    const car={...model,id:i,name:CAR_NAMES[i%CAR_NAMES.length],route:this.route,position:model.group.position,heading:pose.heading,direction,s:pose.s,speed:0,steer:0,pitch:0,roll:0,wait:i===0?8:0,ignorePedUntil:0,rejoin:null,retry:0,spin:0};
-   car.position.set(pose.x,this.terrain.heightAt(pose.x,pose.z)+.11,pose.z);
+   car.position.set(pose.x,(pose.y??this.terrain.heightAt(pose.x,pose.z))+.11,pose.z);
    car.group.rotation.y=car.heading;app.scene.add(car.group);
    car.collider=app.colliders.addBox(car.position.clone().add(new Vector3(0,.85,0)),new Vector3(.95,.8,2.15),car.heading,{tag:`traffic:${i}`});
    this.cars.push(car);this.syncCollider(car);
@@ -29,9 +30,9 @@ export class Traffic {
  // Static checks share the walking collision world, but traffic is tested
  // separately so a vehicle never collides with its own moving collider.
  groundSafe(x,z,radius=1.05){
-  const h=this.terrain.heightAt(x,z),edge=this.terrain.size/2-80;
+  const h=this.terrain.groundHeight?.(x,z)??this.terrain.heightAt(x,z),edge=this.terrain.size/2-80;
   if(h<1.8||Math.abs(x)>edge||Math.abs(z)>edge)return false;
-  for(const [dx,dz]of[[radius,0],[-radius,0],[0,radius],[0,-radius]])if(Math.abs(this.terrain.heightAt(x+dx,z+dz)-h)>radius*.60)return false;
+  for(const [dx,dz]of[[radius,0],[-radius,0],[0,radius],[0,-radius]])if(Math.abs((this.terrain.groundHeight?.(x+dx,z+dz)??this.terrain.heightAt(x+dx,z+dz))-h)>radius*.60)return false;
   const p=new Vector3(x,h+.25,z);
   return !this.app.colliders.resolveCapsule(p,radius,1.35,0,'traffic:');
  }
@@ -62,19 +63,20 @@ export class Traffic {
   app.game.cancelLine(true);app.game.rod.equip(false);app.game.hud?.closeStand();app.game.hud?.toggleInventory(false);
   app.exploration.closeDialogue();app.exploration.toggleJournal(false);app.exploration.plane.group.visible=app.exploration.plane.parked;
   if(app.boatCtl.driven)app.audio?.engineStop();app.boatCtl.driven=false;app.boatCtl.throttle=app.boatCtl.throttleTarget=0;
-  this.active=car;car.rejoin=null;car.wait=0;this.cameraReady=false;this.orbit=0;this.orbitPitch=.32;
+  this.active=car;car.motion=null;this.trackpadSteer=0;car.rejoin=null;car.wait=0;this.cameraReady=false;this.orbit=0;this.orbitPitch=.32;
   car.driver.position.x=-.4;car.playerDriver.visible=true; // the local driver rides along while you take the wheel
   p.mode='car';p.busy=false;p.velocity.set(0,0,0);p.position.copy(car.position);p._camY=null;
-  app.input.consumeLook();app.game.toast(`${car.name} · WASD drive · Space brake · E get out`);return true;
+  app.input.consumeLook();app.game.toast(`${car.name} · WASD / trackpad steer · Shift boost · Space drift · E get out`);return true;
  }
  exit(){
   const car=this.active;if(!car)return false;
   const app=this.app;let spot=null;
+  const exitTerrain={size:this.terrain.size,heightAt:(x,z)=>this.terrain.groundHeight?.(x,z,car.position.y+2)??this.terrain.heightAt(x,z)};
   for(const side of [1,-1]){
    const x=car.position.x+Math.cos(car.heading)*side*2.35,z=car.position.z-Math.sin(car.heading)*side*2.35;
-   if(safeAt(this.terrain,app.colliders,x,z)) {spot=new Vector3(x,this.terrain.heightAt(x,z),z);break;}
+   if(safeAt(exitTerrain,app.colliders,x,z)) {spot=new Vector3(x,exitTerrain.heightAt(x,z),z);break;}
   }
-  spot ||= findSafeSpot(this.terrain,app.colliders,car.position.x,car.position.z,false,16);
+  spot ||= findSafeSpot(exitTerrain,app.colliders,car.position.x,car.position.z,false,16);
   if(!spot){app.game.toast('No room to get out here. Move to an open shoulder.');return false;}
   const heading=car.heading;this.release();
   const p=app.player;p.mode='walk';p.position.copy(spot);p.velocity.set(0,0,0);p.yaw=heading+Math.PI;p.pitch=-.05;p.grounded=true;p._camY=null;p.waterMean=null;p.camOff=p.camOffV=0;
@@ -82,7 +84,7 @@ export class Traffic {
  }
  release(){
   const car=this.active;if(!car)return;
-  this.active=null;car.speed=0;car.wait=2;car.ignorePedUntil=this.time+7;car.driver.position.x=.4;car.playerDriver.visible=false;
+  this.active=null;car.motion=null;car.speed=0;car.wait=2;car.ignorePedUntil=this.time+7;car.driver.position.x=.4;car.playerDriver.visible=false;
   const near=car.route.nearest(car.position.x,car.position.z,true),forward=car.route.sample(near.s,1);
   car.direction=Math.abs(angle(forward.heading-car.heading))<Math.PI/2?1:-1;car.s=near.s;car.retry=0;
   car.rejoin=near.distance>5?this.planReturn(car,near):null;this.cameraReady=false;
@@ -106,7 +108,7 @@ export class Traffic {
   if(!force&&this.time<(this.populationTime||0))return;
   this.populationTime=this.time+1;
   const town=SETTLEMENTS.filter(t=>Math.hypot(t.x-player.x,t.z-player.z)<t.radius+300).sort((a,b)=>Math.hypot(a.x-player.x,a.z-player.z)-Math.hypot(b.x-player.x,b.z-player.z))[0];
-  let route=town?.route;
+  let route=this.terrain.streets?.nearest(player.x,player.z,500)?.route||town?.route;
   // Keep the harbor fleet on its established loop where it meets the highway.
   // Mixing opposite lanes from two overlapping routes can trap the drivers.
   if(!route&&Math.hypot(player.x,player.z)<1700)route=this.route;
@@ -116,12 +118,14 @@ export class Traffic {
   }
   const near=route.nearest(player.x,player.z,true);if(near.distance>1200)return;
   const count=town&&!town.major?10:16;
+  const localRoutes=route.street?this.terrain.streets.nearbyRoutes(player.x,player.z,450).filter(r=>r.name&&r.kind!=='service'&&r.length>30):null;
   for(const car of this.cars){
    if(car===this.active||car.position.distanceTo(player)<(car.route===route?1800:500)||car.id>=count)continue;
-   const direction=car.id%2?-1:1,offset=route.length<2500?route.length*(car.id+.5)/count:(car.id-7.5)*70;
-   const pose=route.sample(near.s+offset,direction);
+   const spawnRoute=localRoutes?.length?localRoutes[(car.id*31)%localRoutes.length]:route;
+   const direction=spawnRoute.one||(car.id%2?-1:1),offset=spawnRoute.length<2500?spawnRoute.length*(car.id+.5)/count:(car.id-7.5)*70;
+   const pose=spawnRoute.sample(spawnRoute.street?spawnRoute.length*(.2+(car.id%5)*.13):near.s+offset,direction);
    if(Math.hypot(pose.x-player.x,pose.z-player.z)<(town?Math.min(70,town.radius*.35):70)||!this.groundSafe(pose.x,pose.z,1.2)||!this.canMove(car,pose.x,pose.z,pose.heading))continue;
-   car.route=route;car.position.set(pose.x,this.terrain.heightAt(pose.x,pose.z)+.11,pose.z);car.heading=pose.heading;car.direction=direction;car.s=pose.s;car.speed=0;car.wait=0;car.rejoin=null;car.retry=0;this.syncCollider(car);
+   car.route=spawnRoute;car.position.set(pose.x,(pose.y??this.terrain.heightAt(pose.x,pose.z))+.11,pose.z);car.heading=pose.heading;car.direction=direction;car.s=pose.s;car.speed=0;car.wait=0;car.rejoin=null;car.retry=0;this.syncCollider(car);
   }
  }
 
@@ -159,6 +163,10 @@ export class Traffic {
    if(!car.rejoin.length)car.rejoin=null;else aim=car.rejoin[0];
   }
   car.s=near.s;
+  if(car.route.street&&!car.rejoin&&((car.direction>0&&car.s>car.route.length-9)||(car.direction<0&&car.s<9))){
+   const next=this.terrain.streets.next(car.route,car.direction,car.id+Math.floor(this.time/7));
+   car.route=next.route;car.direction=next.direction;car.s=next.direction>0?0:next.route.length;
+  }
   const ahead=7+Math.abs(car.speed)*.72;
   aim ||= car.route.sample(car.s+car.direction*ahead,car.direction);
   const dx=aim.x-car.position.x,dz=aim.z-car.position.z,error=angle(Math.atan2(dx,dz)-car.heading);
@@ -179,10 +187,12 @@ export class Traffic {
    const driven=car===active;
    if(!driven&&car.position.distanceTo(p.position)>1900){
     car.group.visible=false;car.collider.solid=false;
-    if(!frozen){const pose=car.route.sample(car.s+car.direction*(10+car.id%4)*dt,car.direction);car.s=pose.s;car.heading=pose.heading;car.position.set(pose.x,this.terrain.heightAt(pose.x,pose.z)+.11,pose.z);}
+    if(!frozen){const pose=car.route.sample(car.s+car.direction*(10+car.id%4)*dt,car.direction);car.s=pose.s;car.heading=pose.heading;car.position.set(pose.x,(pose.y??this.terrain.heightAt(pose.x,pose.z))+.11,pose.z);}
     continue;
    }
-   car.collider.solid=true;let target=0,steer=0,brake=false;
+   car.collider.solid=true;
+   if(driven&&!frozen){this.driveArcade(car,dt,input);continue;}
+   let target=0,steer=0,brake=false;
    if(!frozen){
     if(driven){
      target=input.down('KeyW')?(input.down('ShiftLeft')||input.down('ShiftRight')?34:26):input.down('KeyS')?-6:0;
@@ -199,7 +209,7 @@ export class Traffic {
     if(!this.canMove(car,x,z,heading)){car.speed=0;break;}
     car.heading=heading;car.position.x=x;car.position.z=z;
    }
-   const h=this.terrain.heightAt(car.position.x,car.position.z);
+   const h=this.terrain.groundHeight?.(car.position.x,car.position.z)??this.terrain.heightAt(car.position.x,car.position.z);
    car.position.y=h+.11;
    const sample=(forward,right=0)=>this.terrain.heightAt(car.position.x+Math.sin(car.heading)*forward+Math.cos(car.heading)*right,car.position.z+Math.cos(car.heading)*forward-Math.sin(car.heading)*right);
    const pitch=-Math.atan2(sample(1.32)-sample(-1.32),2.64),roll=Math.atan2(sample(0,.85)-sample(0,-.85),1.7);
@@ -216,6 +226,40 @@ export class Traffic {
   this.updateEngine(active);
   if(active){p.position.copy(active.position);p.yaw=active.heading+Math.PI;p.prompt={key:'E',text:`Get out of ${active.name}`};if(!app.freeCam)this.updateCamera(dt,active,input);}
  }
+ async summon(ticket=null){
+  const app=this.app,p=app.player;
+  await app.realCities?.prepare(p.position);
+  if(ticket!==null&&ticket!==app.exploration.modeTicket)return false;
+  const near=this.terrain.streets?.nearestStreet(p.position.x,p.position.z,1500);
+  const route=near?.route||this.route,at=near||route.nearest(p.position.x,p.position.z,true);
+  const pose=route.sample(at.s,route.one||1);
+  this.release();const car=this.cars[0];
+  // Off-road selection stays with the player when no actual street is nearby.
+  let x=near?pose.x:p.position.x,z=near?pose.z:p.position.z;
+  if(!this.groundSafe(x,z,1.1)){const spot=findSafeSpot(this.terrain,app.colliders,x,z,false,200);if(!spot){app.game.toast('Find dry ground to call a car.');return false;}x=spot.x;z=spot.z;}
+  car.position.set(x,this.terrain.groundHeight(x,z)+.11,z);car.heading=pose.heading;car.route=route;car.s=pose.s;car.speed=0;car.motion=null;car.rejoin=null;
+  p.mode='walk';p.position.copy(car.position);this.syncCollider(car);this.enter(car);return true;
+ }
+ driveArcade(car,dt,input){
+  const app=this.app,look=input.consumeLook();
+  this.trackpadSteer=(this.trackpadSteer||0)*Math.exp(-dt*4)-look.x*.008;
+  this.trackpadSteer=clamp(this.trackpadSteer,-1,1);
+  this.orbitPitch=clamp(this.orbitPitch+look.y*.0015,.14,.8);
+  const steer=input.captured?0:clamp(Number(input.down('KeyA'))-Number(input.down('KeyD'))+this.trackpadSteer,-1,1);
+  stepArcadeCar(car,dt,{throttle:Number(input.down('KeyW'))-Number(input.down('KeyS')),steer,handbrake:input.down('Space'),boost:input.down('ShiftLeft')||input.down('ShiftRight')},{
+   height:(x,z,maxY)=>this.terrain.groundHeight(x,z,maxY),
+   collide:(x,y,z,heading)=>{
+    for(const d of OFFSETS){const pos=new Vector3(x+Math.sin(heading)*d,y+.25,z+Math.cos(heading)*d);if(app.colliders.resolveCapsule(pos,.88,1.15,0,'traffic:'))return true;}
+    for(const other of this.cars){if(other===car||Math.abs(other.position.y-y)>2)continue;if(Math.hypot(other.position.x-x,other.position.z-z)<3){other.speed*=.4;other.wait=.5;return true;}}
+    return false;
+   }
+  });
+  if(car.position.y< -2){const safe=car.motion.lastSafe;if(safe){car.position.set(safe.x,safe.y,safe.z);car.heading=safe.heading;car.motion=null;car.speed=0;app.game.toast('Back on dry ground · 4 calls your car to the nearest street');}}
+  car.group.quaternion.setFromEuler(new Euler(car.pitch,car.heading,car.roll,'YXZ'));car.spin+=car.speed*dt/.365;
+  for(const wheel of car.wheels){wheel.pivot.rotation.y=wheel.front?car.steer:0;wheel.mesh.rotation.x=car.spin;wheel.pivot.visible=true;}
+  car.group.visible=true;car.driver.visible=true;car.glass.visible=true;this.syncCollider(car);
+ }
+
  updateEngine(car){
   const audio=this.app.audio;if(!audio?.ctx)return;
   const ctx=audio.ctx;

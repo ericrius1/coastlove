@@ -87,7 +87,7 @@ export class Seaplane {
 		const targetBank = clamp( - yawDelta / Math.max( dt, 1e-4 ) * BANK_AMOUNT, - 1, 1 );
 		this.bank += ( targetBank - this.bank ) * Math.min( 1, dt * BANK_SMOOTH );
 		const boost = input.down( 'ShiftLeft' ) || input.down( 'ShiftRight' );
-		const targetSpeed = boost && input.down('KeyW') ? 180 : boost ? 62 : input.down( 'KeyW' ) ? 42 : input.down( 'KeyS' ) ? 14 : 26;
+		const targetSpeed = input.captured ? this.speed : boost && input.down('KeyW') ? 180 : boost ? 62 : input.down( 'KeyW' ) ? 42 : input.down( 'KeyS' ) ? 14 : 26;
 		this.speed += ( targetSpeed - this.speed ) * ( 1 - Math.exp( - dt * 1.8 ) );
 		const vertical = Number( input.down( 'Space' ) ) - Number( input.down( 'KeyC' ) );
 		const horizontalStep = Math.cos( this.pitch ) * this.speed * dt;
@@ -106,7 +106,7 @@ export class Seaplane {
 		const manualClimb = Math.sin( this.pitch ) * this.speed + vertical * 24;
 		const terrainClimb = this.position.y < ground + 34 ? clamp( ( ground + 34 - this.position.y ) * 1.15, 0, 26 ) : - Infinity;
 		const previousHeight = this.position.y;
-		this.position.y = clamp( this.position.y + Math.max( manualClimb, terrainClimb ) * dt, ground + 15, 620 );
+		this.position.y = clamp( this.position.y + Math.max( manualClimb, terrainClimb ) * dt, ground + 15, 6000 );
 		this.climb = ( this.position.y - previousHeight ) / Math.max( dt, 1e-4 );
 		if ( this.position.y <= ground + 15 && this.pitch < 0 ) this.pitch = 0.05;
 		const flightPitch = Math.atan2( this.climb, Math.cos( this.pitch ) * this.speed );

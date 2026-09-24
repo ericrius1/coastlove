@@ -1,9 +1,10 @@
+import {NEIGHBORHOODS} from './Neighborhoods.js';
 import { SETTLEMENTS } from "./Settlements.js";
-import { project } from "./Geography.js";
-// California shoreline from the southern border to Oregon, compressed 1:32.
+import { project, legacyPoint } from "./Geography.js";
+// California shoreline from the southern border to Oregon, at real-world metre scale.
 // Elevation, paths, characters and story locations are artistic adaptations.
 export const REGION = {
-	name: 'Coastlove', size: 65536, seed: 41,
+	name: 'Coastlove', size: 2097152, seed: 41,
  islands: [
   {id:'cruz',name:'Santa Cruz',x: -112.5,z: 1338.75,rx: 646.875,rz: 219.375,angle:-.1,summit:240},
   {id:'rosa',name:'Santa Rosa',x: -1181.25,z: 1490.625,rx: 410.625,rz: 270.0,angle:.1,summit:160},
@@ -15,6 +16,11 @@ export const REGION = {
   {id:'barbara',name:'Santa Barbara Island',...project(-119.035,33.475),rx:60,rz:90,angle:0,summit:70},
  ],
 };
+
+for(const island of REGION.islands){
+ if(['cruz','rosa','miguel'].includes(island.id))Object.assign(island,legacyPoint(island.x,island.z));
+ island.rx*=32;island.rz*=32;
+}
 
 const CHANNEL_PLACES = [
 	{ id: 'harbor', name: 'Harbor of little departures', label: 'Santa Barbara', x: 35, z: -92, kind: 'harbor', hint: 'Begin at the weathered pier. Inés knows the crossing.', story: 'The mainland falls behind in a bright ribbon of palms, weathered piers, and salt air.', radius: 45 },
@@ -29,7 +35,9 @@ const CHANNEL_PLACES = [
 	{ id: 'stars', name: 'An ocean of stars', label: 'Stargazer’s Camp', x: 275.625, z: 1378.125, kind: 'camp', hint: 'The eastern Santa Cruz ridge has a tent, a telescope, and a very dark sky.', story: 'The camp is yours for the night. Scrub past dusk and watch the stars take over the channel.', radius: 60 },
 ];
 
-export const PLACES = [...CHANNEL_PLACES, ...SETTLEMENTS];
+for(const place of CHANNEL_PLACES)if(place.id!=='harbor')Object.assign(place,legacyPoint(place.x,place.z));
+
+export const PLACES = [...CHANNEL_PLACES, ...SETTLEMENTS, ...NEIGHBORHOODS];
 
 export const CALIFORNIA_STORIES = [
 	{ id: 'ines', name: 'Inés', role: 'The channel pilot', x: 35, z: -92, color: 0xc27846, pages: [
@@ -61,3 +69,5 @@ for (const [site,id,name,role,color,pages] of [
  ['san-francisco','noah','Noah','The bridge painter',0x737c9d,['From a distance the bridge looks still. Up close it sings in the wind. I think of painting it as tuning an instrument.','My father used to bring me to the waterfront before the city woke up. I still keep his early hours, even on days off.','Fly through the red towers and keep going toward Point Reyes. There is a different kind of quiet beyond the headlands.']],
  ['redwoods','fern','Fern','The forest listener',0x537860,['I came north for a weekend and learned that a redwood weekend takes a little longer. I have been here six years.','Listen for the jays. They always sound as if you have arrived at exactly the wrong time. The ravens are more diplomatic.','The northern border is not far now. Take one more walk before you go. The forest never tells quite the same story twice.']],
 ]) { const p=SETTLEMENTS.find(p=>p.id===site); CALIFORNIA_STORIES.push({id,name,role,color,x:p.x,z:p.z,pages,site,procedural:true}); }
+
+for(const story of CALIFORNIA_STORIES)if(!story.site&&story.id!=='ines')Object.assign(story,legacyPoint(story.x,story.z));

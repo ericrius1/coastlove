@@ -57,7 +57,7 @@ export class CoastalTowns {
   this.propMaterial=createPropMaterial('California plazas');this.propMaterial.underwaterLighting='none';
   const trees=[treeGeometry(false),treeGeometry(true)],prototypes=new Map();
   for(let index=0;index<SETTLEMENTS.length;index++){
-   const town=SETTLEMENTS[index],rng=mulberry32(7100+index),group=new Group(),props=[],boxes=[];
+   const town=SETTLEMENTS[index];if(['san-francisco','los-angeles'].includes(town.id))continue;const rng=mulberry32(7100+index),group=new Group(),props=[],boxes=[];
    group.name=town.label;group.position.set(town.x,0,town.z);app.scene.add(group);
    const add=(g,c,m,pattern=0)=>props.push(prepare(g,{color:c,matrix:m,rough:.87,pattern}));
    const spacing=town.major?23:20,extent=town.radius*.89,placements=Array.from({length:8},()=>[]);
@@ -115,7 +115,7 @@ export class CoastalTowns {
    if(town.id==='san-jose')this.campus(town);
    if(town.id==='san-diego')this.bellTower(town);
   }
-  this.bridge();this.morroRock();
+  this.morroRock();
   // Fixed nearby collider pool keeps walking/driving cost independent of city count.
   this.pool=Array.from({length:480},()=>app.colliders.addBox(new Vector3(1e8,0,1e8),new Vector3(),0,{solid:false,tag:'town'}));this.collisionKey='';
  }

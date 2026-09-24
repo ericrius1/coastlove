@@ -1,7 +1,7 @@
 import { COAST_RINGS } from './Coastline.js';
 import { REGION } from './Region.js';
 export const COAST_FIELD_RES = 4096;
-const N=COAST_FIELD_RES, SIZE=REGION.size, HALF=SIZE/2, STEP=SIZE/N, REACH=1600;
+const N=COAST_FIELD_RES, SIZE=REGION.size, HALF=SIZE/2, STEP=SIZE/N, REACH=24000;
 let field;
 // Scan-line fill + a narrow distance band. Work follows shoreline length rather
 // than testing every map pixel against every segment. The band extends well

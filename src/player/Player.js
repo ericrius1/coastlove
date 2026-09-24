@@ -111,7 +111,7 @@ export class Player {
 
 	groundAt( x, z, maxY ) {
 
-		let g = this.terrain.heightAt( x, z );
+		let g = this.terrain.groundHeight?.(x,z,maxY) ?? this.terrain.heightAt( x, z );
 		const c = this.colliders.groundHeightAt( x, z, maxY );
 		if ( c > g ) g = c;
 		if ( this.reef && this.reef.floorHeightAt ) g = Math.max( g, this.reef.floorHeightAt( x, z ) );

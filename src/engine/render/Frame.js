@@ -9,7 +9,13 @@ import { Vector2, Vector3, Vector4, Matrix4, Color } from '../math/index.js';
 // The simulation globals (the former Globals.js `G` uniforms) live here too: `G.sunDir.value` is the
 // handle of `frame.sunDir` and so on, so CPU code keeps its `.value` accessors.
 const FRAME_FIELDS = {
-	view: 'mat4x4f',
+	relativeViewProj: 'mat4x4f',
+    prevRelativeViewProj: 'mat4x4f',
+    cameraOrigin: ['vec3f',new Vector3()],
+    cameraOffset: ['vec3f',new Vector3()],
+    prevCameraOrigin: ['vec3f',new Vector3()],
+    prevCameraOffset: ['vec3f',new Vector3()],
+    view: 'mat4x4f',
 	proj: 'mat4x4f',
 	viewProj: 'mat4x4f',
 	invView: 'mat4x4f',
@@ -58,7 +64,7 @@ const FRAME_FIELDS = {
 	debug: [ 'vec4f', new Vector4() ],
 };
 
-const CAMERA_FIELDS = [ 'view', 'proj', 'viewProj', 'invView', 'invProj', 'invViewProj', 'viewProjNoJitter', 'prevViewProjNoJitter',
+const CAMERA_FIELDS = [ 'relativeViewProj','prevRelativeViewProj','cameraOrigin','cameraOffset','prevCameraOrigin','prevCameraOffset','view', 'proj', 'viewProj', 'invView', 'invProj', 'invViewProj', 'viewProjNoJitter', 'prevViewProjNoJitter',
 	'cameraPos', 'near', 'prevCameraPos', 'far', 'resolution', 'invResolution', 'jitter', 'reversedDepth' ];
 
 // The main frame block (main camera; also what compute shaders see).
@@ -130,7 +136,14 @@ export function setFrameCamera( camera, width, height, { jitterX = 0, jitterY = 
 	F.prevViewProjNoJitter.value = prevViewProj ? prevViewProj.clone() : vp.clone();
 	F.cameraPos.value = new Vector3().setFromMatrixPosition( camera.matrixWorld );
 	F.prevCameraPos.value = prevCameraPos ? prevCameraPos.clone() : F.cameraPos.value.clone();
-	F.near.value = camera.near;
+	const cameraP=F.cameraPos.value,previousP=F.prevCameraPos.value;
+ const origin=new Vector3(Math.floor(cameraP.x/1024)*1024,Math.floor(cameraP.y/1024)*1024,Math.floor(cameraP.z/1024)*1024);
+ const previousOrigin=new Vector3(Math.floor(previousP.x/1024)*1024,Math.floor(previousP.y/1024)*1024,Math.floor(previousP.z/1024)*1024);
+ F.cameraOrigin.value=origin;F.cameraOffset.value=cameraP.clone().sub(origin);
+ F.prevCameraOrigin.value=previousOrigin;F.prevCameraOffset.value=previousP.clone().sub(previousOrigin);
+ F.relativeViewProj.value=vp.clone().multiply(new Matrix4().makeTranslation(cameraP.x,cameraP.y,cameraP.z));
+ F.prevRelativeViewProj.value=F.prevViewProjNoJitter.value.clone().multiply(new Matrix4().makeTranslation(previousP.x,previousP.y,previousP.z));
+ F.near.value = camera.near;
 	F.far.value = camera.far;
 	F.resolution.value = new Vector2( width, height );
 	F.invResolution.value = new Vector2( 1 / width, 1 / height );

@@ -169,19 +169,20 @@ export class PebbleField {
 		this.terrain = terrain;
 		this.gpu = gpu;
 		const T = terrain;
+        this.local=T.size>100000;
 		// RGBA8, bilinear, clamp to edge (smpLinearClamp), linear data, no mips
 		this.maskTex = new Texture( { label: 'debrisPebbleMask', width: mask.res, height: mask.res, format: 'rgba8unorm', usage: [ 'sample', 'copyDst' ], data: mask.data } );
 
 		// occupied cells + height range
 		const n = Math.ceil( T.size / PCELL );
 		this.cellsPerSide = n;
-		this.cellFlags = new Uint8Array( n * n );
-		this.cellMinY = new Float32Array( n * n );
-		this.cellMaxY = new Float32Array( n * n );
+		this.cellFlags = new Uint8Array( this.local?0:n * n );
+		this.cellMinY = new Float32Array( this.local?0:n * n );
+		this.cellMaxY = new Float32Array( this.local?0:n * n );
 		const mpc = PCELL / mask.texel;
 		const hpc = PCELL / T.texel;
 		let occupied = 0;
-		for ( let cj = 0; cj < n; cj ++ ) for ( let ci = 0; ci < n; ci ++ ) {
+		for ( let cj = 0; cj < (this.local?0:n); cj ++ ) for ( let ci = 0; ci < n; ci ++ ) {
 
 			let any = 0;
 			const i0 = Math.max( 0, Math.floor( ci * mpc ) - 1 ), i1 = Math.min( mask.res - 1, Math.ceil( ( ci + 1 ) * mpc ) );
@@ -266,7 +267,8 @@ export class PebbleField {
 	let P = v.position;
 	let N = v.normal;
 	let xz = cell + slot.xy;
-	let m = textureSampleLevel( debrisPebbleMask, smpLinearClamp, terrainUvOf( xz ), 0.0 );
+	var m = textureSampleLevel( debrisPebbleMask, smpLinearClamp, terrainUvOf( xz ), 0.0 );
+ ${this.local ? "let beachH=terrainHeightAt(xz);m=vec4f(0.10,0.08,0.05,0.5)*(1.0-smoothstep(4.0,10.0,beachH))*smoothstep(-2.0,0.0,beachH);" : ""}
 	let ptype = slot.w;
 	let isSmall = ptype < 0.5;
 	let isCob = ptype > 0.5 && ptype < 1.5;
@@ -378,12 +380,13 @@ export class PebbleField {
 			for ( let j = j0; j <= j1; j ++ ) for ( let i = i0; i <= i1; i ++ ) {
 
 				const c = j * n + i;
-				if ( ! this.cellFlags[ c ] ) continue;
+				if ( !this.local && ! this.cellFlags[ c ] ) continue;
 				const x0 = T.origin + i * PCELL, z0 = T.origin + j * PCELL;
+                if(this.local&&(T.heightAt(x0,z0)>12||T.pathDistance(x0,z0)<3||T.streets?.inCity(x0,z0)))continue;
 				const dx = Math.max( x0 - cx, 0, cx - x0 - PCELL ), dz = Math.max( z0 - cz, 0, cz - z0 - PCELL );
 				if ( Math.hypot( dx, dz ) > R_FAR ) continue;
-				this._box.min.set( x0, this.cellMinY[ c ] - 0.2, z0 );
-				this._box.max.set( x0 + PCELL, this.cellMaxY[ c ] + 0.3, z0 + PCELL );
+				this._box.min.set( x0, this.local?T.heightAt(x0,z0)-3:this.cellMinY[ c ] - 0.2, z0 );
+				this._box.max.set( x0 + PCELL, this.local?T.heightAt(x0,z0)+3:this.cellMaxY[ c ] + 0.3, z0 + PCELL );
 				if ( ! this._frustum.intersectsBox( this._box ) ) continue;
 				if ( count >= MAX_CELLS ) break;
 				this.arr[ count * 4 ] = x0;

@@ -1,3 +1,4 @@
+import { NEIGHBORHOODS } from './Neighborhoods.js';
 import { COAST_DRIVE } from './Coastline.js';
 import { SETTLEMENTS } from './Settlements.js';
 import { REGION } from './Region.js';
@@ -29,11 +30,11 @@ export class RegionalBirds {
   };
   // A coast-following habitat roughly every 20 real km, plus towns and islands.
   let travel=0;for(let i=1;i<COAST_DRIVE.length/2;i++){
-   const a=COAST_DRIVE[i-1],b=COAST_DRIVE[i];travel+=Math.hypot(a[0]-b[0],a[1]-b[1]);if(travel<550)continue;travel=0;
+   const a=COAST_DRIVE[i-1],b=COAST_DRIVE[i];travel+=Math.hypot(a[0]-b[0],a[1]-b[1]);if(travel<18000)continue;travel=0;
    const x=b[0],z=b[1],dx=coastFieldAt(x+20,z)-coastFieldAt(x-20,z),dz=coastFieldAt(x,z+20)-coastFieldAt(x,z-20),l=Math.hypot(dx,dz)||1;
    add(x+dx/l*145,z+dz/l*145);
   }
-  for(const town of SETTLEMENTS){add(town.x,town.z,true);if(town.region==='north'&&town.style==='forest')add(town.x+60,town.z-30,true);}
+  for(const town of [...SETTLEMENTS,...NEIGHBORHOODS]){add(town.x,town.z,true);if(town.region==='north'&&town.style==='forest')add(town.x+60,town.z-30,true);}
   for(const island of REGION.islands){add(island.x,island.z-island.rz-45);add(island.x+island.rx*.65,island.z+island.rz+45);}
  }
  update(dt,batch,camera){

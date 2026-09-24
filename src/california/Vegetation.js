@@ -34,7 +34,7 @@ export function californiaGrass(site) {
  const t=site.terrain,res=1024,data=new Uint8Array(res*res*4),step=t.size/res;
  for(let j=1;j<res-1;j++)for(let i=1;i<res-1;i++){
   const x=t.origin+(i+.5)*step,z=t.origin+(j+.5)*step,h=t.heightAt(x,z);
-  if(h<2||site.rock(x,z)>.5||site.obstacleDist(x,z)<5||site.spawnDist(x,z)<6||t.pathDistance(x,z)<2)continue;
+  if(h<2||site.rock(x,z)>.5||site.obstacleDist(x,z)<5||site.spawnDist(x,z)<6||t.pathDistance(x,z)<6)continue;
   const patch=.55+.45*smoothstep(-.4,.5,site.noise.noise(x/36,z/36));
   const k=(j*res+i)*4;
   data[k]=Math.round(130*(1-smoothstep(3,12,h))*patch);

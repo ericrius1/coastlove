@@ -2139,13 +2139,14 @@ export class UI {
 				<div class="tw-help-grid">
 					<section>
 						<h3>Move</h3>
+						${ row( k( 'E' ), 'Enter / exit nearby car<small>NPCs take over when you leave</small>' ) }
 						${ row( k( '1', '2', '3' ), 'Boat / seaplane / safely ashore<small>Number row or numpad</small>' ) }
 						${ row( k( 'J' ), 'Coastal chart, destinations and field notes' ) }
 						${ row( k( 'Z' ), 'Hold + two-finger trackpad swipe to scrub time' ) }
-						${ row( wasd, 'Move · plane: speed and turning' ) }
+						${ row( wasd, 'Move · car / plane: speed and steering' ) }
 						${ row( mouse, 'Look around<small>Click to capture</small>' ) }
 						${ row( k( 'Shift' ), 'Sprint, boat boost' ) }
-						${ row( k( 'Space' ), 'Jump, swim up, plane climb' ) }
+						${ row( k( 'Space' ), 'Jump, swim up, plane climb · car: brake' ) }
 						${ row( k( 'C' ), 'Plane descend (terrain following)' ) }
 						${ row( k( 'C' ), 'Crouch, dive' ) }
 					</section>

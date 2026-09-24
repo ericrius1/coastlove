@@ -11,6 +11,7 @@ export class CoastalChart {
    image.data.set([...col,255],k);
   }
   ctx.putImageData(image,0,0);
+  ctx.strokeStyle='#ecd9a7';ctx.lineWidth=1.4;ctx.beginPath();terrain.coastalRoute.points.forEach((p,i)=>i?ctx.lineTo(this.px(p.x),this.px(p.z)):ctx.moveTo(this.px(p.x),this.px(p.z)));ctx.stroke();
   canvas.onclick=e=>{const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)/rect.width*640,y=(e.clientY-rect.top)/rect.height*640;const nearest=PLACES.map(p=>({p,d:Math.hypot(this.px(p.x)-x,this.px(p.z)-y)})).sort((a,b)=>a.d-b.d)[0];if(nearest.d<25)onSelect(nearest.p);};
  }
  px(n){return(n/8192+.5)*640;}

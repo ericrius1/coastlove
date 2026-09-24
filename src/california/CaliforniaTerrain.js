@@ -1,3 +1,4 @@
+import { CoastalRoute, gradeCoastalRoad } from './CoastalRoads.js';
 import { coastFieldAt } from './CoastField.js';
 import { TerrainData } from '../world/TerrainData.js';
 import { REGION, PLACES } from './Region.js';
@@ -21,6 +22,8 @@ export class CaliforniaTerrain extends TerrainData {
 		this.clearings = PLACES.filter( p => ! p.water ).map( p => ( { x: p.x, z: p.z, radius: p.kind === 'grove' ? 20 : 30 } ) );
 		this.landArea = this.heights.reduce( ( count, h ) => count + Number( h > 0 ), 0 ) * this.texel ** 2;
 	}
+
+	pathDistance(x,z) { return this.coastalRoute.nearest(x,z).distance - 5; }
 
 	coastDistance( x, z ) {
 		const harbor = 1 - smoothstep( 150, 420, Math.abs( x ) );
@@ -80,6 +83,8 @@ export class CaliforniaTerrain extends TerrainData {
 			const y = Math.max( 2.5, this.heightAt( p.x, p.z ) );
 			this.flatten( p.x, p.z, p.kind === 'lighthouse' ? 20 : 12, y, 24 );
 		}
+		this.coastalRoute = new CoastalRoute();
+		gradeCoastalRoad(this, this.coastalRoute);
 		this.timings.total = performance.now() - started;
 	}
 }

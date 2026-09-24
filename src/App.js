@@ -522,7 +522,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 			this.fly.setPose( this.camera.position.clone(), e.y, e.x );
 			this.fly.velocity.set( 0, 0, 0 );
 
-		} else if ( this.player.mode !== 'boat' && this.player.mode !== 'deck' ) {
+		} else if ( this.player.mode !== 'boat' && this.player.mode !== 'deck' && this.player.mode !== 'car' ) {
 
 			this.dropPlayerAtCamera();
 
@@ -617,7 +617,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 
 		// ---- player / boat (boat physics first so the cameras follow this frame's pose)
 		this.exploration.beforeUpdate();
-		if ( this.input.hit( 'KeyF' ) && this.player.mode !== 'plane' && ! this.exploration.paused ) this.setFreeCam( ! this.freeCam );
+		if ( this.input.hit( 'KeyF' ) && !['plane','car'].includes(this.player.mode) && ! this.exploration.paused ) this.setFreeCam( ! this.freeCam );
 		if ( this.input.hit( 'KeyT' ) ) this.toggleTime();
 		if ( this.input.hit( 'KeyL' ) ) {
 
@@ -644,6 +644,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		const blocked = this.exploration.paused;
 		const wasEnabled = this.input.enabled;
 		if ( blocked ) this.input.enabled = false;
+		this.exploration.traffic.update(dt, blocked);
 		if ( ! blocked ) {
 			if ( this.freeCam ) this.fly.update( dt );
 			else if ( this.player.mode === 'plane' ) {
@@ -651,7 +652,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 				this.player.position.copy( this.exploration.plane.position );
 				this.player.yaw = this.exploration.plane.heading + Math.PI;
 				this.player.prompt = null;
-			} else this.player.update( dt );
+			} else if(this.player.mode !== 'car') this.player.update( dt );
 		} else if ( this.player.mode === 'boat' || this.player.mode === 'deck' ) this.player.update( dt );
 		else this.input.consumeLook();
 		this.game.update( dt );

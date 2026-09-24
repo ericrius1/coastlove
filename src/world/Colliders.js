@@ -66,12 +66,12 @@ export class Colliders {
 	}
 
 	// Push a vertical capsule (feet at pos.y) out of solid geometry. Returns true if collided.
-	resolveCapsule( pos, radius, height, stepHeight = 0.35 ) {
+	resolveCapsule( pos, radius, height, stepHeight = 0.35, ignoreTagPrefix = null ) {
 
 		let hit = false;
 		for ( const b of this.boxes ) {
 
-			if ( ! b.solid ) continue;
+			if ( ! b.solid || (ignoreTagPrefix && b.tag.startsWith(ignoreTagPrefix)) ) continue;
 			if ( pos.y + height < b.bottom || pos.y + stepHeight > b.top ) continue;
 			if ( Math.abs( pos.x - b.center.x ) > b.radius + radius || Math.abs( pos.z - b.center.z ) > b.radius + radius ) continue;
 			const [ lx, lz ] = this._toLocal( b, pos.x, pos.z );
@@ -120,12 +120,12 @@ export class Colliders {
 	}
 
 	// Segment/ray against boxes (XZ-plane rotated) for camera occlusion; returns distance or Infinity.
-	raycast( origin, dir, maxDist ) {
+	raycast( origin, dir, maxDist, ignoreTagPrefix = null ) {
 
 		let best = maxDist;
 		for ( const b of this.boxes ) {
 
-			if ( ! b.solid ) continue;
+			if ( ! b.solid || (ignoreTagPrefix && b.tag.startsWith(ignoreTagPrefix)) ) continue;
 			const ox = origin.x - b.center.x, oz = origin.z - b.center.z, oy = origin.y - b.center.y;
 			const lox = ox * b.cos - oz * b.sin, loz = ox * b.sin + oz * b.cos;
 			const ldx = dir.x * b.cos - dir.z * b.sin, ldz = dir.x * b.sin + dir.z * b.cos;

@@ -38,7 +38,10 @@ export class CaliforniaTerrain extends TerrainData {
   for(const route of this.roadCells?.get(`${Math.floor(x/64)},${Math.floor(z/64)}`)||[]){const near=route.nearest(x,z);if(!local||near.distance<local.distance)local={...near,route};}
   if(local&&local.distance<20){const y=local.route.sample(local.s,1,0).y;h+=(y-h)*(1-smoothstep(9,20,local.distance));}
   const road=this.streets?.surfaceAt(x,z);
-  if(road&&!road.bridge){const blend=1-smoothstep(road.width/2,road.width/2+5,road.distance);h+=(road.height-h)*blend;}
+  // Include the sidewalk and a small graded verge. The moving terrain patch
+  // samples every four metres; grading only the asphalt lets interpolated land
+  // poke through the curb in alternating triangles on sloping streets.
+  if(road&&!road.bridge){const blend=1-smoothstep(road.width/2+4.5,road.width/2+9,road.distance);h+=(road.height-h)*blend;}
   if(x> -247200&&x< -246400&&z> -383200&&z< -380200){
    const bridge=this.streets?.surfaceAt(x,z,true);
    if(bridge?.route.name==='Golden Gate Bridge'&&h>bridge.height)h+=(bridge.height-h)*(1-smoothstep(bridge.width/2,bridge.width/2+5,bridge.distance));

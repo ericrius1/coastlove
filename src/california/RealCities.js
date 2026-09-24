@@ -67,7 +67,8 @@ function roads(batch,segments,terrain,ox,oz){
  };
  for(let s of segments){
   const r=s.route;if(r.tunnel)continue;const w=r.width/2;
-  ribbon(s,-w-1.7,w+1.7,.08,CURB);ribbon(s,-w,w,.15,ASPHALT);
+  // Sidewalks sit 13 cm above the asphalt, matching a normal street curb.
+  ribbon(s,-w-1.7,-w,.28,CURB);ribbon(s,w,w+1.7,.28,CURB);ribbon(s,-w,w,.15,ASPHALT);
   if(s.len>20){
    const margin=Math.min(12,s.len*.25),u=margin/s.len;s={...s,clipped:true,a:{x:s.a.x+s.dx*u,y:s.a.y+(s.b.y-s.a.y)*u,z:s.a.z+s.dz*u},b:{x:s.b.x-s.dx*u,y:s.b.y-(s.b.y-s.a.y)*u,z:s.b.z-s.dz*u},dx:s.dx*(1-2*u),dz:s.dz*(1-2*u),len:s.len-2*margin};
    for(const side of[-1,1])ribbon(s,side*(w-.25)-.06,side*(w-.25)+.06,.19,PAINT);

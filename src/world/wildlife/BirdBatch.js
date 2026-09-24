@@ -282,21 +282,20 @@ export class BirdBatch {
 
 	if ( species == 0.0 ) {
 
-		// laughing gull: slate mantle and upperwing, black primaries with a white trailing
-		// edge, white body and tail; breeding birds have a black hood, winter birds a grey smudge
+		// Western gull: slate mantle, black primaries, white head and tail, yellow bill.
 		let white = ${ srgb( 0.93, 0.93, 0.92 ) }; let slate = ${ srgb( 0.38, 0.4, 0.43 ) }; let black = ${ srgb( 0.05, 0.05, 0.055 ) };
-		let hooded = seed < 0.5;
+		let hooded = false;
 		let mantle = smoothstep( 0.1, 0.45, N.y ) * smoothstep( -0.1, -0.07, P.z ) * smoothstep( 0.1, 0.075, P.z );
 		let head = smoothstep( 0.1, 0.115, P.z );
 		let eyeArc = smoothstep( 0.006, 0.004, length( vec2f( P.z - 0.139, P.y - 0.037 ) ) ) * smoothstep( 0.002, 0.004, length( vec2f( P.z - 0.141, P.y - 0.032 ) ) );
-		let hood = select( head * smoothstep( 0.012, 0.004, length( vec2f( P.z - 0.126, P.y - 0.03 ) ) ) * 0.45, head * ( 1.0 - eyeArc ), hooded );
+		let hood = 0.0;
 		let body = mix( mix( white, slate, mantle ), select( ${ srgb( 0.45, 0.45, 0.47 ) }, black, hooded ), hood );
 		let tipK = smoothstep( 0.68, 0.76, u );
 		let edge = smoothstep( 0.9, 0.97, v ) * ( 1.0 - tipK ) * ( 1.0 - fold );
 		let wingTop = mix( mix( slate, white, edge ), black, tipK );
 		let wingBot = mix( mix( white, ${ srgb( 0.72, 0.73, 0.75 ) }, smoothstep( 0.3, 0.9, u ) * 0.6 ), black, smoothstep( 0.78, 0.9, u ) );
 		c = select( select( body, white, isTail ), select( wingBot, wingTop, top ), isWing );
-		c = select( c, select( ${ srgb( 0.12, 0.08, 0.08 ) }, ${ srgb( 0.42, 0.07, 0.07 ) }, hooded ), isBill );
+		c = select( c, ${ srgb( 0.85, 0.68, 0.18 ) }, isBill );
 		c = select( c, ${ srgb( 0.16, 0.07, 0.07 ) }, isLeg );
 
 	} else if ( species == 1.0 ) {
@@ -336,22 +335,17 @@ export class BirdBatch {
 
 	} else if ( species == 3.0 ) {
 
-		// magnificent frigatebird: black with a faint gloss; females a white breast and a
-		// brown bar on the upperwing, juveniles a white head and breast; males a red throat
-		let black = ${ srgb( 0.035, 0.035, 0.04 ) };
-		let female = seed < 0.45; let juvenile = seed > 0.85;
-		let breast = smoothstep( 0.2, -0.3, N.y ) * smoothstep( -0.06, 0.0, P.z ) * smoothstep( 0.14, 0.1, P.z );
-		let headW = smoothstep( 0.13, 0.16, P.z );
-		let white = ${ srgb( 0.9, 0.9, 0.88 ) };
-		let body = mix( black, white, select( select( 0.0, breast, female ), max( breast, headW ), juvenile ) );
-		let throat = smoothstep( 0.13, 0.16, P.z ) * smoothstep( 0.0, -0.5, N.y ) * select( 1.0, 0.0, female || juvenile );
-		let bar = smoothstep( 0.08, 0.14, u ) * smoothstep( 0.45, 0.38, u ) * smoothstep( 0.12, 0.22, v ) * smoothstep( 0.5, 0.4, v ) * select( 0.4, 1.0, female || juvenile );
-		let wingTop = mix( black, ${ srgb( 0.32, 0.25, 0.18 ) }, bar );
-		c = select( select( mix( body, ${ srgb( 0.55, 0.06, 0.05 ) }, throat ), black, isTail ), select( black, wingTop, top ), isWing );
-		c = select( c, ${ srgb( 0.5, 0.52, 0.56 ) }, isBill );
-		c = select( c, ${ srgb( 0.35, 0.28, 0.28 ) }, isLeg );
-		rough = 0.55;
-		trans *= 0.3;
+		// Common raven: broad dark wings, a wedge tail and a stout bill.
+  c = ${ srgb(.065,.07,.08) } * (0.85 + max(N.y,0.0)*.3);
+  rough=.58;trans*=.2;
+
+ } else if ( species == 5.0 ) {
+  c = ${ srgb(.075,.09,.085) };rough=.52;trans*=.2;
+  c=select(c,${ srgb(.37,.39,.30) },isBill);
+  c=mix(c,${ srgb(.16,.36,.40) },smoothstep(.26,.30,P.z)*smoothstep(.02,-.03,P.y)*select(1.0,0.0,isBill));
+ } else if ( species == 6.0 ) {
+  c=mix(${ srgb(.13,.30,.50) },${ srgb(.065,.075,.095) },smoothstep(.07,.12,P.z));
+  c=select(c,${ srgb(.025,.03,.04) },isBill||isLeg);trans*=.35;
 
 	} else {
 

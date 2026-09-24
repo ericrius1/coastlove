@@ -43,10 +43,10 @@ const VILLAGE = WORLD.village.center;
 //            rubble, then the rock / sand / path / gully masks
 export class TerrainData {
 
-	constructor( seed = 7, { landScale = 1 } = {} ) {
+	constructor( seed = 7, { landScale = 1, resolution = RES } = {} ) {
 
 		this.size = WORLD.terrainSize;
-		this.res = RES;
+		this.res = resolution;
 		this.texel = this.size / this.res;
 		this.origin = - this.size / 2;
 		this.noise = new Noise2D( seed );

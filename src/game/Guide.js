@@ -69,8 +69,8 @@ const CARDS = [
 	{
 		eyebrow: 'Welcome to Coastlove',
 		title: 'The coast is calling',
-		body: `<p>Meet <b>Inés, Rowan, Sana, and Elias</b>. Follow the bearing and distance on the travel card, then press <b>E</b> nearby to hear their stories. Find island foxes and sea lions wandering the island. Your <b>J</b> coastal chart remembers every discovery and offers easy visits. Hold <b>Z</b> and swipe your trackpad with two fingers to travel through the hours. The real Santa Barbara Channel coastline is compressed for play, with imagined paths and people.</p>
-			<p>Press <b>1</b> for the boat, <b>2</b> for Marigold the seaplane, or <b>3</b> to arrive safely on land. In flight, move on the trackpad to fly the nose: left/right turns and up/down climbs or dives. <b>A/D</b> also turn, <b>W/S</b> change speed, and <b>Space/C</b> rise or descend. Fishing, Joe’s market and Marta’s upgrades are still here whenever you want them.</p>`,
+		body: `<p>Meet <b>nine storytellers</b>, from the Channel Islands to the redwoods. Follow the bearing and distance on the travel card, then press <b>E</b> nearby to hear their stories. Find island foxes and sea lions wandering the island. Your <b>J</b> coastal chart remembers every discovery and offers easy visits. Hold <b>Z</b> and swipe your trackpad with two fingers to travel through the hours. The California coast runs from Border Field to Oregon, with the Bay and offshore islands. Distances are compressed for play, with imagined streets and people.</p>
+			<p>Press <b>1</b> for the boat, <b>2</b> for Marigold the seaplane, or <b>3</b> to arrive safely on land. In flight, move on the trackpad to fly the nose: left/right turns and up/down climbs or dives. <b>A/D</b> also turn, <b>W/S</b> change speed, <b>Shift + W</b> cruises the coast faster, <b>L</b> levels the nose, and <b>Space/C</b> rise or descend. Fishing, Joe’s market and Marta’s upgrades are still here whenever you want them.</p>`,
 	},
 	{
 		eyebrow: 'Fishing',

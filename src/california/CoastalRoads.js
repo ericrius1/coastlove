@@ -10,9 +10,11 @@ export const ROAD_HALF_WIDTH = 4.3;
 const wrap = (v,n) => (v % n + n) % n;
 
 export class CoastalRoute {
- constructor() {
-  const curve = new CatmullRomCurve3(STOPS.map(([x,z])=>new Vector3(x,0,z)),true,'centripetal');
-  const dense = curve.getPoints(2400);
+ constructor(stops=STOPS,{id='santa-barbara',linear=false}={}) {
+  this.id=id;
+  const vertices=stops.map(([x,z])=>new Vector3(x,0,z));
+  const curve = linear?null:new CatmullRomCurve3(vertices,true,'centripetal');
+  const dense = linear?[...vertices,vertices[0].clone()]:curve.getPoints(2400);
   this.points=[dense[0]];this.lengths=[0];this.length=0;this.cells=new Map();
   for(let i=1;i<dense.length;i++){
    const previous=this.points.at(-1),p=dense[i],distance=p.distanceTo(previous);
@@ -52,20 +54,26 @@ export class CoastalRoute {
 export function gradeCoastalRoad(terrain,route) {
  const n=route.points.length-1,raw=route.points.slice(0,-1).map(p=>terrain.heightAt(p.x,p.z));
  const levels=raw.map((_,i)=>{let sum=0,w=0;for(let j=-8;j<=8;j++){const weight=9-Math.abs(j);sum+=raw[wrap(i+j,n)]*weight;w+=weight;}return Math.max(3,sum/w);});
+ // Bound the longitudinal grade before touching the height atlas. Forward /
+ // backward relaxation handles both climbs and descents, including the seam.
+ for(let pass=0;pass<3;pass++)for(const direction of [1,-1])for(let k=0;k<n;k++){
+  const i=direction>0?k:n-1-k,j=wrap(i-direction,n),a=route.points[i],b=route.points[j];
+  levels[i]=Math.min(levels[i],levels[j]+Math.hypot(a.x-b.x,a.z-b.z)*.18);
+ }
  const cells=new Map(),R=terrain.res,step=terrain.texel,origin=terrain.origin;
  for(let i=0;i<n;i++){
   const a=route.points[i],b=route.points[i+1],dx=b.x-a.x,dz=b.z-a.z;
-  const i0=Math.floor((Math.min(a.x,b.x)-17-origin)/step),i1=Math.ceil((Math.max(a.x,b.x)+17-origin)/step);
-  const j0=Math.floor((Math.min(a.z,b.z)-17-origin)/step),j1=Math.ceil((Math.max(a.z,b.z)+17-origin)/step);
+  const i0=Math.floor((Math.min(a.x,b.x)-40-origin)/step),i1=Math.ceil((Math.max(a.x,b.x)+40-origin)/step);
+  const j0=Math.floor((Math.min(a.z,b.z)-40-origin)/step),j1=Math.ceil((Math.max(a.z,b.z)+40-origin)/step);
   for(let j=j0;j<=j1;j++)for(let k=i0;k<=i1;k++){
    const x=origin+(k+.5)*step,z=origin+(j+.5)*step,u=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz)));
    const d=Math.hypot(x-a.x-dx*u,z-a.z-dz*u),idx=j*R+k;
-   if(d>17||cells.has(idx)&&cells.get(idx).d<=d)continue;
+   if(k<0||j<0||k>=R||j>=R||d>40||cells.has(idx)&&cells.get(idx).d<=d)continue;
    cells.set(idx,{d,y:levels[i]*(1-u)+levels[(i+1)%n]*u});
   }
  }
  for(const [k,{d,y}] of cells){
-  const t=Math.max(0,Math.min(1,(d-7)/10)),weight=1-t*t*(3-2*t);
+  const t=Math.max(0,Math.min(1,(d-17)/23)),weight=1-t*t*(3-2*t);
   terrain.heights[k]+=(y-terrain.heights[k])*weight;terrain.rock[k]*=1-weight;
   terrain.path[k]=Math.round(255*weight);terrain.sand[k]*=1-weight;
  }
@@ -73,7 +81,7 @@ export function gradeCoastalRoad(terrain,route) {
 
 function ribbon(terrain,route,start,end,left,right,lift) {
  const positions=[],indices=[];
- const steps=Math.max(1,Math.ceil((end-start)/2));
+ const steps=Math.max(1,Math.ceil((end-start)/4));
  for(let i=0;i<=steps;i++)for(const offset of [left,right]){
   const p=route.sample(start+(end-start)*i/steps,1,offset);
   positions.push(p.x,terrain.heightAt(p.x,p.z)+lift,p.z);
@@ -85,11 +93,11 @@ function ribbon(terrain,route,start,end,left,right,lift) {
 export class CoastalRoads {
  constructor(scene,terrain) {
   this.group=new Group();this.group.name='The coastal drive';scene.add(this.group);
-  const route=terrain.coastalRoute,material=createPropMaterial('sun-warmed coastal asphalt');
+  const material=createPropMaterial('sun-warmed coastal asphalt');
   material.side='double';material.surface+='\ns.albedo *= 0.9 + gpNoise(in.P * 19.0) * 0.2;\n';
   // Short independently culled batches keep the road cheap across the big map.
-  for(let start=0;start<route.length;start+=240){
-   const end=Math.min(route.length,start+240),parts=[];
+  for(const route of terrain.routes)for(let start=0;start<route.length;start+=400){
+   const end=Math.min(route.length,start+400),parts=[];
    const strip=(a,b,l,r,color,lift=.09)=>parts.push(prepare(ribbon(terrain,route,a,b,l,r,lift),{color,rough:.96}));
    strip(start,end,-4.7,4.7,0x9a9075,.06);
    strip(start,end,-ROAD_HALF_WIDTH,ROAD_HALF_WIDTH,0x646861,.10);

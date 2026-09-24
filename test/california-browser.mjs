@@ -14,7 +14,7 @@ export function checkCalifornia(app){
    check(safeAt(app.terrainData,app.colliders,p.position.x,p.position.z,!!place.water,place.water?5:.6),`safe full footprint at ${place.label}`);
    e.update(.016);
   }
-  check(e.life.residents.every(r=>r.vendor.character),'all four animated characters loaded');
+  check(e.life.residents.every(r=>r.procedural||r.vendor.character),'all nine characters available');
   check(e.life.animals.length===32,'all 32 California animals present');
   const originalYaw=p.yaw;app.settings.timeOfDay=23.5;
   window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyZ',bubbles:true}));

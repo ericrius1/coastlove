@@ -1,3 +1,4 @@
+import { SETTLEMENTS } from '../california/Settlements.js';
 import { Vector3, Euler, Color } from '../engine/index.js';
 import { makeCar, CAR_NAMES } from './CarModel.js';
 import { CoastalRoads } from '../california/CoastalRoads.js';
@@ -14,10 +15,10 @@ export class Traffic {
   this.roads=new CoastalRoads(app.scene,this.terrain);
   this.headlight=app.localLights?.add({position:new Vector3(),color:new Color(1,.86,.60),intensity:0,range:42,dir:new Vector3(0,-.06,1),cosInner:.97,cosOuter:.9,kind:'carHeadlights'});
   this.cameraPosition=new Vector3();this.cameraTarget=new Vector3();this.cameraReady=false;this.orbit=0;this.orbitPitch=.32;
-  const starts=[0,90,430,1000,1800,2600,3400,4200];
-  for(let i=0;i<8;i++){
+  const starts=[0,90,250,430,700,1000,1400,1800,2200,2600,3000,3400,3700,4000,4400,4800];
+  for(let i=0;i<16;i++){
    const direction=i%2?-1:1,pose=this.route.sample(starts[i],direction),model=makeCar(i);
-   const car={...model,id:i,name:CAR_NAMES[i],position:model.group.position,heading:pose.heading,direction,s:pose.s,speed:0,steer:0,pitch:0,roll:0,wait:i===0?8:0,ignorePedUntil:0,rejoin:null,retry:0,spin:0};
+   const car={...model,id:i,name:CAR_NAMES[i%CAR_NAMES.length],route:this.route,position:model.group.position,heading:pose.heading,direction,s:pose.s,speed:0,steer:0,pitch:0,roll:0,wait:i===0?8:0,ignorePedUntil:0,rejoin:null,retry:0,spin:0};
    car.position.set(pose.x,this.terrain.heightAt(pose.x,pose.z)+.11,pose.z);
    car.group.rotation.y=car.heading;app.scene.add(car.group);
    car.collider=app.colliders.addBox(car.position.clone().add(new Vector3(0,.85,0)),new Vector3(.95,.8,2.15),car.heading,{tag:`traffic:${i}`});
@@ -82,11 +83,12 @@ export class Traffic {
  release(){
   const car=this.active;if(!car)return;
   this.active=null;car.speed=0;car.wait=2;car.ignorePedUntil=this.time+7;car.driver.position.x=.4;car.playerDriver.visible=false;
-  const near=this.route.nearest(car.position.x,car.position.z,true),forward=this.route.sample(near.s,1);
+  const near=car.route.nearest(car.position.x,car.position.z,true),forward=car.route.sample(near.s,1);
   car.direction=Math.abs(angle(forward.heading-car.heading))<Math.PI/2?1:-1;car.s=near.s;car.retry=0;
   car.rejoin=near.distance>5?this.planReturn(car,near):null;this.cameraReady=false;
  }
  findCarStop(){
+  this.populate(true);
   const ordered=[...this.cars].sort((a,b)=>a.position.distanceTo(this.app.player.position)-b.position.distanceTo(this.app.player.position));
   for(const car of ordered)for(const side of [1,-1]){
    const x=car.position.x+Math.cos(car.heading)*side*3.4,z=car.position.z-Math.sin(car.heading)*side*3.4;
@@ -97,10 +99,36 @@ export class Traffic {
   return null;
  }
 
+ // The same small pool follows the explored region. A car can only be recycled
+ // beyond the local streets; the occupied car and nearby drivers stay physical.
+ populate(force=false){
+  const player=this.app.player.position;
+  if(!force&&this.time<(this.populationTime||0))return;
+  this.populationTime=this.time+1;
+  const town=SETTLEMENTS.filter(t=>Math.hypot(t.x-player.x,t.z-player.z)<t.radius+300).sort((a,b)=>Math.hypot(a.x-player.x,a.z-player.z)-Math.hypot(b.x-player.x,b.z-player.z))[0];
+  let route=town?.route;
+  // Keep the harbor fleet on its established loop where it meets the highway.
+  // Mixing opposite lanes from two overlapping routes can trap the drivers.
+  if(!route&&Math.hypot(player.x,player.z)<1700)route=this.route;
+  if(!route){
+   const routes=[this.route,this.terrain.highway].filter(Boolean);
+   route=routes.sort((a,b)=>a.nearest(player.x,player.z,true).distance-b.nearest(player.x,player.z,true).distance)[0];
+  }
+  const near=route.nearest(player.x,player.z,true);if(near.distance>1200)return;
+  const count=town&&!town.major?10:16;
+  for(const car of this.cars){
+   if(car===this.active||car.position.distanceTo(player)<(car.route===route?1800:500)||car.id>=count)continue;
+   const direction=car.id%2?-1:1,offset=route.length<2500?route.length*(car.id+.5)/count:(car.id-7.5)*70;
+   const pose=route.sample(near.s+offset,direction);
+   if(Math.hypot(pose.x-player.x,pose.z-player.z)<(town?Math.min(70,town.radius*.35):70)||!this.groundSafe(pose.x,pose.z,1.2)||!this.canMove(car,pose.x,pose.z,pose.heading))continue;
+   car.route=route;car.position.set(pose.x,this.terrain.heightAt(pose.x,pose.z)+.11,pose.z);car.heading=pose.heading;car.direction=direction;car.s=pose.s;car.speed=0;car.wait=0;car.rejoin=null;car.retry=0;this.syncCollider(car);
+  }
+ }
+
  // A bounded local A* gets NPCs back to the road after an off-road outing.
  // No teleporting: if there is no safe route they wait in the car and retry.
  planReturn(car,near){
-  const step=6,start={x:car.position.x,z:car.position.z},goal=this.route.sample(near.s,car.direction);
+  const step=6,start={x:car.position.x,z:car.position.z},goal=car.route.sample(near.s,car.direction);
   const gx=Math.round((goal.x-start.x)/step),gz=Math.round((goal.z-start.z)/step);
   const key=(x,z)=>`${x},${z}`,open=[{x:0,z:0,g:0,f:Math.hypot(gx,gz),parent:null}],cost=new Map([['0,0',0]]);
   let end=null;
@@ -121,8 +149,8 @@ export class Traffic {
  }
  npcControls(car,dt){
   car.wait=Math.max(0,car.wait-dt);car.retry-=dt;
-  let near=this.route.nearest(car.position.x,car.position.z);
-  if(!Number.isFinite(near.distance))near=this.route.nearest(car.position.x,car.position.z,true);
+  let near=car.route.nearest(car.position.x,car.position.z);
+  if(!Number.isFinite(near.distance))near=car.route.nearest(car.position.x,car.position.z,true);
   if(!car.rejoin&&near.distance>9)car.rejoin=this.planReturn(car,near);
   if(car.rejoin?.length===0){if(car.retry<=0){car.rejoin=this.planReturn(car,near);car.retry=4;}return{target:0,steer:0};}
   let aim;
@@ -132,7 +160,7 @@ export class Traffic {
   }
   car.s=near.s;
   const ahead=7+Math.abs(car.speed)*.72;
-  aim ||= this.route.sample(car.s+car.direction*ahead,car.direction);
+  aim ||= car.route.sample(car.s+car.direction*ahead,car.direction);
   const dx=aim.x-car.position.x,dz=aim.z-car.position.z,error=angle(Math.atan2(dx,dz)-car.heading);
   let target=(car.rejoin?6:10+car.id%4)/(1+Math.abs(error)*2.8);
   const p=this.app.player,distance=p.position.distanceTo(car.position);
@@ -146,8 +174,15 @@ export class Traffic {
   dt=Math.min(dt,.05);this.time+=dt;
   const app=this.app,input=app.input,p=app.player,active=this.active;
   const frozen=paused||!input.enabled||app.freeCam;
+  if(!frozen)this.populate();
   for(const car of this.cars){
-   const driven=car===active;let target=0,steer=0,brake=false;
+   const driven=car===active;
+   if(!driven&&car.position.distanceTo(p.position)>1900){
+    car.group.visible=false;car.collider.solid=false;
+    if(!frozen){const pose=car.route.sample(car.s+car.direction*(10+car.id%4)*dt,car.direction);car.s=pose.s;car.heading=pose.heading;car.position.set(pose.x,this.terrain.heightAt(pose.x,pose.z)+.11,pose.z);}
+    continue;
+   }
+   car.collider.solid=true;let target=0,steer=0,brake=false;
    if(!frozen){
     if(driven){
      target=input.down('KeyW')?(input.down('ShiftLeft')||input.down('ShiftRight')?34:26):input.down('KeyS')?-6:0;
@@ -158,7 +193,7 @@ export class Traffic {
    const rate=brake?19:frozen?18:target*car.speed<0||Math.abs(target)<Math.abs(car.speed)?(driven&&!input.down('KeyS')?2.2:9):driven?5.2:3;
    car.speed=approach(car.speed,target,rate*dt);car.steer+=(steer-car.steer)*(1-Math.exp(-dt*7));
    const steps=Math.max(1,Math.ceil(Math.abs(car.speed)*dt/.45)),sub=dt/steps;
-   for(let i=0;i<steps;i++){
+   for(let i=0;i<steps&&Math.abs(car.speed)>.001;i++){
     const heading=car.heading+car.speed/2.64*Math.tan(car.steer)*sub;
     const x=car.position.x+Math.sin(heading)*car.speed*sub,z=car.position.z+Math.cos(heading)*car.speed*sub;
     if(!this.canMove(car,x,z,heading)){car.speed=0;break;}

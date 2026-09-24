@@ -17,7 +17,7 @@ import * as THREE from '../../engine/index.js';
 // Legs are built in the shader from the posed knee / foot: A = ( side, segment, t, 8 ),
 // B = ( cos, sin, radius scale, 0 ), C = toe offset (feet).
 
-export const BIRD = { GULL: 0, TERN: 1, PELICAN: 2, FRIGATE: 3, SANDERLING: 4 };
+export const BIRD = { GULL: 0, TERN: 1, PELICAN: 2, FRIGATE: 3, RAVEN: 3, SANDERLING: 4, CORMORANT: 5, JAY: 6 };
 
 // body stations: [ z, y, half width, half height above, half height below ] from the tail base
 // to the forehead. neck: z range blending body -> head; pivot: neck joint (head rotation)
@@ -123,6 +123,19 @@ export const SPECIES = [
 		eye: [ 0.081, 0.025, 0.0024 ],
 	},
 ];
+
+// California variants retain the articulated shared topology.
+SPECIES[0].name='western gull';
+SPECIES[3].name='common raven';
+SPECIES[3].span=1.3;SPECIES[3].wing.span=.60;
+SPECIES[3].tail.len=[.18,.17,.15,.13];SPECIES[3].bill.len=.062;
+const cormorant=JSON.parse(JSON.stringify(SPECIES[0]));
+cormorant.name="Brandt’s cormorant";cormorant.length=.85;cormorant.wing.span=.64;
+cormorant.body=cormorant.body.map(([z,y,w,h,l],i)=>[z*(i>5?1.75:1.3),y*1.2,w*1.2,h*1.2,l*1.2]);
+cormorant.bill.z=.29;cormorant.bill.len=.065;cormorant.bill.hook=.008;cormorant.eye=[.25,.041,.004];cormorant.tail.len=[.19,.18,.17,.16];
+const jay=JSON.parse(JSON.stringify(SPECIES[0]));jay.name="Steller’s jay";jay.length=.32;jay.wing.span=.25;jay.bill.len=.028;jay.tail.len=[.14,.14,.14,.13];
+jay.body[7][3]=.06;jay.body[8][3]=.04;
+SPECIES.push(cormorant,jay);
 
 // ---------------------------------------------------------------- topology
 

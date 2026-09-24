@@ -27,7 +27,7 @@ const trackpadPlane = new Seaplane( scene, flat );
 trackpadPlane.launch( new Vector3( 0, 10, - 100 ), 0 );
 lookX = 30;
 trackpadPlane.update( 1 / 60, input, camera );
-assert.ok( Math.abs( trackpadPlane.heading - 0.8 / 60 ) < 1e-6 && trackpadPlane.bank < 0, 'San Francisco turn-rate cap and right bank' );
+assert.ok( Math.abs( trackpadPlane.heading + 0.8 / 60 ) < 1e-6 && trackpadPlane.bank > 0, 'San Francisco turn-rate cap and right bank' );
 lookX = - 30;
 trackpadPlane.update( 1 / 60, input, camera );
 assert.ok( Math.abs( trackpadPlane.heading ) < 1e-6, 'trackpad swipe left reverses the turn' );
@@ -35,7 +35,7 @@ trackpadPlane.update( 1 / 60, input, camera );
 assert.ok( Math.abs( trackpadPlane.heading ) < 1e-6, 'releasing trackpad holds the heading' );
 lookX = 1000;
 trackpadPlane.update( 1 / 60, input, camera );
-assert.ok( Math.abs( trackpadPlane.heading - 0.8 / 60 ) < 1e-6, 'a large pointer jump keeps the same turn-rate cap' );
+assert.ok( Math.abs( trackpadPlane.heading + 0.8 / 60 ) < 1e-6, 'a large pointer jump keeps the same turn-rate cap' );
 const pitchPlane = new Seaplane( scene, flat );
 pitchPlane.launch( new Vector3( 0, 10, - 100 ), 0 );
 const pitchHeight = pitchPlane.position.y;
@@ -48,6 +48,16 @@ for ( let i = 0; i < 60; i ++ ) pitchPlane.update( 1 / 60, input, camera );
 assert.ok( Math.abs( pitchPlane.position.y - levelHeight ) < 0.1, 'level flight holds height' );
 for ( let i = 0; i < 25; i ++ ) { lookY = 5; pitchPlane.update( 1 / 60, input, camera ); }
 assert.ok( pitchPlane.pitch < - 0.25 && pitchPlane.position.y < levelHeight - 1, 'trackpad down pitches and descends' );
+// Verify the actual screen direction, including after the camera turns around.
+for(const heading of [0,Math.PI/2,Math.PI,-Math.PI/2])for(const key of [null,'KeyD']){
+ const p=new Seaplane(scene,flat);p.launch(new Vector3(0,100,-100),heading);p.update(1/60,input,camera);
+ camera.updateMatrixWorld();const right=new Vector3(1,0,0).applyQuaternion(camera.quaternion);
+ const forward=new Vector3(Math.sin(heading),0,Math.cos(heading));
+ if(key)keys.add(key);else lookX=30;
+ p.update(1/60,input,camera);keys.clear();
+ const turned=new Vector3(Math.sin(p.heading),0,Math.cos(p.heading));
+ assert.ok(turned.sub(forward).dot(right)>0,'right input turns toward screen right at every compass heading');
+}
 console.log( 'ok San Francisco trackpad yaw and pitch, rate cap, bank and level flight' );
 plane.launch( new Vector3( 0, 10, - 100 ), 0 );
 const takeoffHeight = plane.position.y;
@@ -56,7 +66,7 @@ assert.ok( Math.abs( plane.position.y - takeoffHeight ) < 0.2, 'holds altitude w
 assert.ok( plane.speed < 30, 'relaxed cruise is the default' );
 keys.add( 'KeyD' ); keys.add( 'Space' );
 for ( let i = 0; i < 120; i ++ ) plane.update( 1 / 60, input, camera );
-assert.ok( plane.heading > 3.5 && plane.bank < - .9, 'San Francisco A/D turn and bank' );
+assert.ok( plane.heading < -3.5 && plane.bank > .9, 'San Francisco A/D turn and bank' );
 assert.ok( plane.position.y > takeoffHeight + 40, 'Space rises in flight' );
 keys.clear();
 const releasedHeight = plane.position.y;

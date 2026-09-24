@@ -2,8 +2,8 @@ import { Group, Mesh, Vector3, Euler } from '../engine/index.js';
 import { prepare, mergePrepared, sphere, roundedBox, cylinder, mat4, rod } from '../world/boat/GeoKit.js';
 import { createPropMaterial } from '../game/GameMaterials.js';
 
-// Match San Francisco's standard plane steering, translated from its -Z
-// forward axis to Coastlove's +Z forward axis.
+// Match San Francisco’s input feel in screen space. With +Z forward and a
+// trailing camera, screen-right is -X at heading zero: right input reduces yaw.
 const TURN_RATE = 0.8;
 const MOUSE_YAW = 0.0026;
 const MOUSE_PITCH = 0.0022;
@@ -13,8 +13,9 @@ const BANK_SMOOTH = 4.5;
 const clamp = ( value, min, max ) => Math.max( min, Math.min( max, value ) );
 
 export class Seaplane {
-	constructor( scene, terrain ) {
+	constructor( scene, terrain, clearance = null ) {
 		this.terrain = terrain;
+		this.clearance = clearance;
 		this.group = new Group();
 		this.group.name = 'Coastlove courier seaplane';
 		this.group.visible = false;
@@ -55,7 +56,7 @@ export class Seaplane {
 
 	launch( position, heading ) {
 		this.position.copy( position );
-		this.position.y = Math.max( position.y + 18, this.terrain.heightAt( position.x, position.z ) + 45, 55 );
+		this.position.y = Math.max( position.y + 18, this.terrain.heightAt( position.x, position.z ) + 45, (this.clearance?.(position.x,position.z,position.x,position.z)||0)+30, 55 );
 		this.heading = heading;
 		this.pitch = 0;
 		this.bank = this.climb = 0;
@@ -69,15 +70,16 @@ export class Seaplane {
 		this.time += dt;
 		const look = input.consumeLook();
 		const maxStep = TURN_RATE * dt;
-		const mouseYaw = clamp( look.x * MOUSE_YAW, - maxStep, maxStep );
-		const keyYaw = ( Number( input.down( 'KeyD' ) ) - Number( input.down( 'KeyA' ) ) ) * KEY_YAW * dt;
+		const mouseYaw = clamp( - look.x * MOUSE_YAW, - maxStep, maxStep );
+		const keyYaw = ( Number( input.down( 'KeyA' ) ) - Number( input.down( 'KeyD' ) ) ) * KEY_YAW * dt;
 		const yawDelta = clamp( mouseYaw + keyYaw, - maxStep - KEY_YAW * dt, maxStep + KEY_YAW * dt );
 		this.heading += yawDelta;
+		if ( input.down('KeyL') ) this.pitch *= Math.exp(-dt * 5);
 		this.pitch = clamp( this.pitch + clamp( - look.y * MOUSE_PITCH, - maxStep, maxStep ), - 1.15, 1.15 );
 		const targetBank = clamp( - yawDelta / Math.max( dt, 1e-4 ) * BANK_AMOUNT, - 1, 1 );
 		this.bank += ( targetBank - this.bank ) * Math.min( 1, dt * BANK_SMOOTH );
 		const boost = input.down( 'ShiftLeft' ) || input.down( 'ShiftRight' );
-		const targetSpeed = boost ? 62 : input.down( 'KeyW' ) ? 42 : input.down( 'KeyS' ) ? 14 : 26;
+		const targetSpeed = boost && input.down('KeyW') ? 180 : boost ? 62 : input.down( 'KeyW' ) ? 42 : input.down( 'KeyS' ) ? 14 : 26;
 		this.speed += ( targetSpeed - this.speed ) * ( 1 - Math.exp( - dt * 1.8 ) );
 		const vertical = Number( input.down( 'Space' ) ) - Number( input.down( 'KeyC' ) );
 		const horizontalStep = Math.cos( this.pitch ) * this.speed * dt;
@@ -91,7 +93,8 @@ export class Seaplane {
 		}
 		// Follow the nose like San Francisco's plane, while looking ahead to keep
 		// the coastline and ridges safely clear. Level flight holds its height.
-		const ground = Math.max( 0, this.terrain.heightAt( this.position.x, this.position.z ), this.terrain.heightAt( this.position.x + Math.sin( this.heading ) * 36, this.position.z + Math.cos( this.heading ) * 36 ) );
+		const ahead=Math.max(36,this.speed*1.2), ax=this.position.x+Math.sin(this.heading)*ahead, az=this.position.z+Math.cos(this.heading)*ahead;
+		const ground = Math.max( this.clearance?.(this.position.x,this.position.z,ax,az)||0, this.terrain.heightAt( this.position.x, this.position.z ), this.terrain.heightAt( this.position.x + Math.sin( this.heading ) * Math.max(36,this.speed*1.2), this.position.z + Math.cos( this.heading ) * Math.max(36,this.speed*1.2) ) );
 		const manualClimb = Math.sin( this.pitch ) * this.speed + vertical * 24;
 		const terrainClimb = this.position.y < ground + 34 ? clamp( ( ground + 34 - this.position.y ) * 1.15, 0, 26 ) : - Infinity;
 		const previousHeight = this.position.y;

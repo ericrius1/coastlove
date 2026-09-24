@@ -8,21 +8,21 @@ const terrain=new CaliforniaTerrain(),colliders=new Colliders(),keys=new Set();
 const player={position:new Vector3(53.6,terrain.heightAt(53.6,-77),-77),mode:'walk',velocity:new Vector3()};
 const app={scene:new Scene(),terrainData:terrain,colliders,player,camera:new PerspectiveCamera(60,1,.1,15000),input:{enabled:true,down:k=>keys.has(k),consumeLook:()=>({x:0,y:0})},boatCtl:{driven:false},game:{cancelLine(){},rod:{equip(){}},toast(){}},exploration:{life:{residents:[]},plane:{group:{}},closeDialogue(){},toggleJournal(){}}};
 const traffic=new Traffic(app);app.exploration.traffic=traffic;
-assert.equal(traffic.cars.length,8);
+assert.equal(traffic.cars.length,16);
 assert.ok(traffic.route.length>4500);
 for(let s=0;s<traffic.route.length;s+=4)for(const dir of [-1,1]){
  const p=traffic.route.sample(s,dir);assert.ok(traffic.groundSafe(p.x,p.z,1.5),`route is safe at ${s} m, direction ${dir}`);
 }
 console.log('ok continuous dry two-lane road',Math.round(traffic.route.length),'m');
 const positions=traffic.cars.map(c=>c.position.clone());
-const travel=Array(8).fill(0);
+const travel=Array(16).fill(0);
 for(let i=0;i<60*600;i++){
  const before=traffic.cars.map(c=>c.position.clone());traffic.update(1/60);
  traffic.cars.forEach((c,j)=>travel[j]+=c.position.distanceTo(before[j]));
 }
 for(const c of traffic.cars)assert.ok(travel[c.id]>4000,`${c.name} keeps circulating: ${Math.round(travel[c.id])} m`);
 for(const c of traffic.cars){assert.ok(c.position.distanceTo(positions[c.id])>20,`${c.name} patrols`);assert.ok(terrain.heightAt(c.position.x,c.position.z)>1.8);assert.ok(traffic.route.nearest(c.position.x,c.position.z).distance<6,`${c.name} keeps its lane`);}
-console.log('ok all eight NPC cars patrol for ten simulated minutes without leaving the road');
+console.log('ok all sixteen NPC cars patrol for ten simulated minutes without leaving the road');
 const car=traffic.cars[0];player.position.copy(car.position).add(new Vector3(0,0,-4));car.speed=0;
 assert.ok(traffic.enter(car));assert.equal(player.mode,'car');assert.equal(car.driver.position.x,-.4);assert.ok(car.playerDriver.visible);
 keys.add('KeyW');for(let i=0;i<100;i++)traffic.update(1/60);keys.clear();assert.ok(car.speed>4,'player can accelerate');
@@ -39,7 +39,7 @@ colliders.addBox(new Vector3(spot.x+Math.sin(spot.heading)*6,h+1,spot.z+Math.cos
 assert.equal(traffic.canMove(car,spot.x+Math.sin(spot.heading)*6,spot.z+Math.cos(spot.heading)*6,car.heading),false,'building collision');
 assert.equal(traffic.groundSafe(0,1000),false,'cannot drive into channel');
 // A path from an actual off-road shoulder reconnects without moving the car.
-const point=traffic.route.sample(900,1,22);car.position.set(point.x,terrain.heightAt(point.x,point.z)+.11,point.z);traffic.syncCollider(car);
+const point=traffic.route.sample(700,1,22);car.position.set(point.x,terrain.heightAt(point.x,point.z)+.11,point.z);traffic.syncCollider(car);
 const before=car.position.clone(),near=traffic.route.nearest(point.x,point.z,true);car.rejoin=traffic.planReturn(car,near);
 assert.ok(car.rejoin.length>0,'off-road return path exists');assert.equal(car.position.distanceTo(before),0,'planning never teleports');
 car.wait=0;car.speed=0;car.heading=Math.atan2(car.rejoin[0].x-car.position.x,car.rejoin[0].z-car.position.z);

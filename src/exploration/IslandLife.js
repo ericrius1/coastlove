@@ -69,6 +69,7 @@ export class IslandLife {
 		// Reuse Tidewater's credited Rocketbox characters, with procedural figures
 		// retained as a fallback if an asset cannot load.
 		this.ready = loadCharacters ? Promise.all( this.residents.map( async r => {
+			if(r.procedural)return;
 			const female = r.id === 'ines' || r.id === 'sana';
 			const url = ( import.meta.env?.BASE_URL || '/' ) + `models/characters/${ female ? 'marta' : 'joe' }.glb`;
 			try { await r.vendor.loadCharacter( url, { talk: female ? 'gestic_talk_neutral_01' : 'gestic_talk_relaxed_01' } ); }

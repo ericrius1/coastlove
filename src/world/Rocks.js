@@ -1,3 +1,4 @@
+import { COAST_DRIVE } from '../california/Coastline.js';
 import * as THREE from '../engine/index.js';
 import { Noise2D, mulberry32, smoothstep as sstep } from '../util/Noise.js';
 import { standard } from '../materials/Materials.js';
@@ -239,7 +240,8 @@ export class Rocks {
   if(T.profile==='california'){
    let placed=0;
    for(let i=0;i<50000 && placed<850;i++){
-    const x=(rand()-.5)*7600,z=-700+rand()*4000;
+    const p=COAST_DRIVE[Math.floor(rand()*COAST_DRIVE.length)];
+    const x=p[0]+(rand()-.5)*260,z=p[1]+(rand()-.5)*260;
     const h=T.heightAt(x,z),d=T.coastDistance(x,z).d;
     if(h<1||h>65||d>0||d< -75)continue;
     const size=1.8+rand()**2*8;

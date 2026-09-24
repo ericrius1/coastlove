@@ -1,3 +1,4 @@
+import { RegionalBirds } from '../../california/RegionalBirds.js';
 import { BirdBatch } from './BirdBatch.js';
 import { Birds } from './Birds.js';
 import { CritterBatch } from './CritterBatch.js';
@@ -81,7 +82,7 @@ export class Wildlife {
 	} ) {
 
 		this.terrain = terrain;
-		this.birdBatch = new BirdBatch( { csm } );
+		this.birdBatch = new BirdBatch( { csm, capacity: 400 } );
 		scene.add( this.birdBatch.mesh );
 		this.critterBatch = new CritterBatch();
 		scene.add( this.critterBatch.mesh );
@@ -106,6 +107,7 @@ export class Wildlife {
 		this.shorebirds = new Shorebirds( { terrain, probe } );
 		this.water = new WaterHeights( query );
 		this.birds = new Birds( { terrain, village, colliders, boat, boatModel, water: this.water, spray } );
+		this.regional = terrain.profile==='california'?new RegionalBirds(terrain):null;
 		this.viewer = { x: 0, y: 0, z: 0, speed: 0, mode: 'walk', px: 0, pz: 0, init: false };
 		this.test = null;
 		this.cpuMs = 0;
@@ -157,6 +159,7 @@ export class Wildlife {
 		else {
 
 			this.birds.update( dt, viewer, this.birdBatch, camera );
+			this.regional?.update(dt,this.birdBatch,camera);
 			this.shorebirds.update( dt, viewer, this.birdBatch, camera, this.blobs );
 			this.crabs.update( dt, viewer, this.critterBatch, camera, this.blobs );
 

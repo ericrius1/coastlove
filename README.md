@@ -1,57 +1,63 @@
 # Coastlove
 
-A standalone California exploration game built on [David Greenheck’s Tidewater](https://github.com/dgreenheck/tidewater). Explore the **Santa Barbara Channel**, from the Santa Barbara–Ventura mainland coast to **San Miguel, Santa Rosa, Santa Cruz, and Anacapa**.
+A standalone California exploration game built on [David Greenheck’s Tidewater](https://github.com/dgreenheck/tidewater). Follow the Pacific from **Border Field, south of San Diego, to Pelican State Beach at the Oregon line**, including San Francisco Bay and all eight Channel Islands.
 
-The original Windward Isle project is kept separately and unchanged. Coastlove has its own repository, dependencies, port, and journal save key.
+**[Play Coastlove](https://ericrius1.github.io/coastlove/)** · **[Repository](https://github.com/ericrius1/coastlove)**
 
-## Play
+The original Windward Isle project remains separate. Coastlove has its own repository, dependencies, port and saved journal.
 
-```sh
-cd /Users/eric/codeprojects/coastlove
-npm install
-npm run dev
-```
+## The coast
 
-Open **http://127.0.0.1:5190** in Chrome with WebGPU enabled. The first visit compiles shaders. Double-click `Play Coastlove.command` for subsequent launches on this Mac. The same build is published through GitHub Pages at [ericrius1.github.io/coastlove](https://ericrius1.github.io/coastlove/).
+The map uses real Natural Earth shoreline polygons at **1:32 horizontal travel scale**, with a populated corridor extending roughly **10 real miles inland from the coast and bays**. The 65.536 km square terrain domain provides continuous coastline and inexpensive distant mountain scenery. Hills are procedural; town blocks, roads, gardens, landmarks and stories are composed for pleasant exploration. Shoreline data is cartographic at 1:10 million scale, not a local elevation survey. Small coast features and arrivals are softened or embellished for smooth walking. This is an artistic interpretation with real geographic anchors, not a street-for-street reconstruction.
+
+There are **30 town districts, 40 discovery stops and nine three-part NPC stories**. Los Angeles, San Diego and San José—the state's three largest cities—receive larger districts, more buildings and additional landmarks. San Francisco also has a skyline district and a Golden Gate Bridge interpretation. Regional palettes change from southern stucco and tile to central coast cottages, Bay Area rooftops and northern Victorian houses and redwoods. Public art, garden courtyards, café terraces, observation wheels and illuminated windows give the stops something to explore.
+
+The original Santa Barbara harbor and Channel Island discoveries remain: island foxes, sea lions, poppy and lupine bluffs, sea arch, lighthouse, nighttime grotto, wreck bell and telescope camp. Tidewater's ocean, sky, fishing, marine life, sound and boat physics are retained.
+
+## Controls
 
 | Control | Action |
 | --- | --- |
 | 1 / 2 / 3 | Boat / seaplane / safe arrival on foot |
-| WASD | Walk, steer the boat, or gently turn/change speed in flight |
-| Trackpad in flight | Fly Marigold's nose: left/right turns, up/down pitches; click the game view to capture the pointer |
-| Shift | Run or boost |
-| Space / C in flight | Rise / descend; release to hold height when the nose is level |
-| Hold Z + two-finger trackpad swipe | Scrub time backward / forward; horizontal and vertical gestures work |
+| WASD | Walk, drive or steer the boat |
+| Trackpad in flight | Move right to turn right, left to turn left; vertical movement pitches the nose. Click the game view to capture the pointer. |
+| A / D in flight | Turn left / right |
+| W / S in flight | Speed up / slow down |
+| Shift / Shift + W in flight | Boost / fast coastal cruise |
+| L in flight | Hold to level the nose |
+| Space / C in flight | Rise / descend |
+| Hold Z + two-finger trackpad swipe | Scrub time backward / forward; horizontal and vertical gestures both work |
 | Hold Z + mouse drag | Alternative time scrub |
-| E | Enter / exit a nearby car, talk, or interact |
-| WASD / Space in a car | Accelerate/reverse, steer, brake; Shift for extra speed |
-| J | Coastal chart, quick visits, collected stories, picture quality |
-| V | Boat camera |
-| T | Start / pause the day cycle |
-| R / I | Fishing rod / inventory |
-| F1 | Full controls |
+| E | Enter / exit a nearby car, talk or interact |
+| WASD / Space in a car | Accelerate/reverse, steer / brake; Shift for extra speed |
+| J | Coastal chart, instant visits, stories, region filter and picture quality |
+| Chart scroll / drag / double-click | Zoom / pan / fit the whole coast |
+| V / T / R / I / F1 | Boat camera / day cycle / fishing rod / inventory / full controls |
 
-## The coast
+Flight uses the San Francisco project's input response with the coordinate sign corrected for this engine. Turning and pitching are rate-limited, the chase camera follows smoothly, and terrain and rooftop clearance help avoid crashes. With a level nose, releasing the altitude keys holds height. Press 3 for a safe walking arrival, or J to visit another part of California instantly.
 
-The 8.192 × 8.192 km world covers **67.1 km²**, about **8× Windward’s overall world area**. Its sampled land is approximately **35.06 km²**, about **21.1× Windward’s 1.662 km²**. Most extra land is the mainland hinterland; the ten detailed stops are concentrated along the coast and islands.
+## Traffic and birds
 
-The shoreline comes from **Natural Earth’s real land polygons**, projected around Santa Barbara Harbor and scaled uniformly **1:18 horizontally**. The actual island arrangement and coastline shapes are retained. Natural Earth is cartographic data at 1:10 million scale, not a 10-metre survey. Elevation is procedural, with interpolated ridges, softened arrival areas, and invented story locations. The village, characters, and embellished landmarks are fictional. This is an artistic playable interpretation, not a surveyed recreation or navigation map.
+A pool of **sixteen roadsters** follows the region you explore. NPCs circulate on the statewide scenic coastal drive, the Santa Barbara loop and local town roads. Use **Coastal drive · find a car**, then press **E**. The driver moves into the passenger seat and takes over again when you get out. Cars yield to pedestrians, avoid buildings and water, and physically return from reachable off-road shoulders. Only distant, unoccupied cars are reassigned to another area. The road network is an invented scenic route adapted to the real shore, not surveyed Highway 1.
 
-There are four three-part NPC stories, 20 wandering island foxes, 12 sea lions, ten saved discoveries, a poppy/lupine bluff, wind-shaped grove, sea arch, lighthouse with a rotating night beam, luminous grotto, ship’s bell, and a telescope camp. Tidewater’s ocean, sky, fishing, marine life, sound, and boat physics are retained. The seaplane is an arcade travel mode with terrain clearance; switching to 3 provides the safe walking arrival.
+Regional flocks add western gulls, brown pelicans and Brandt's cormorants along the coast, royal terns in the south, common ravens inland, and Steller's jays in northern forest areas. Pelicans and cormorants fly in lines; other birds circle in groups. These are habitat-inspired artistic populations, not a seasonal wildlife census. Up to **280 regional birds** are simulated near the player, sharing the original instanced bird renderer.
 
-The seaplane cruises gently when you release the speed keys. Click the game view, then fly its nose with the trackpad: left/right turns and up/down pitches. Each frame's turn and pitch are rate-limited to keep quick gestures smooth. A/D still turn, W flies faster, S slows down, and Shift boosts. Space/C rise or descend; with a level nose, releasing them holds height. The plane climbs above approaching terrain. Hold Z and swipe with two fingers to scrub time instead. Use 3 to arrive safely on foot.
+## Performance
 
-## Coastal driving
+**Full detail · long views** remains the default at native resolution with the original 2048-pixel shadow maps. The 80% and 65% picture settings retain the same draw distances. Continuous terrain LOD spans the entire coast; larger landmarks and cities remain visible farther away. Detail budgets stay bounded: a 4096² height atlas, 4 MB grass mask, 6,500 scattered trees, 14,000 shrubs, nearby city collision pool, instanced town geometry, and nearby traffic and wildlife simulation. Regional town groves add palms and redwoods.
 
-Eight open-top roadsters patrol a 5.36 km two-lane mainland loop with visible NPC drivers. Use **Coastal drive · find a car** on the travel card to arrive beside an available vehicle, then press **E** to take the wheel. The NPC moves to the passenger seat while you drive and takes over again after you get out. Cars yield to people, avoid buildings and water, and use a bounded path search to return from nearby off-road areas. If a return route is blocked, the driver waits and retries instead of teleporting.
+A camera-following shore field restores **4 m surf sampling** near each beach. Its worker runs off the main thread, while the statewide field supplies distant waves. The local minimap follows travel anywhere on the coast.
 
-W accelerates, S brakes/reverses, A/D steer, Space brakes, and Shift gives extra speed. The chase camera follows the terrain; mouse/trackpad look lets you glance around. Headlights turn on at night and engine audio follows the throttle. The road is a fictional scenic route adapted to the real coastline. Boat, plane, walking, and Z + trackpad time controls still work.
+Browser checks on the development M5 MacBook Air at native resolution showed approximately **43–54 fps** in sampled harbor and southern coastal views. These are short samples, not a statewide benchmark; first-use shader compilation and dense views can run slower. The original cloud and water effects remain enabled.
 
-## Performance and validation
+## Run and verify
 
-Default **Full detail · long views** renders at native resolution, with the original 2048-pixel shadow maps. The chart also offers 80% and 65% internal resolution with temporal reconstruction; all three retain exactly the same draw distances. The height atlas remains 2048², the grass mask is capped at 4 MB, vegetation is limited to 6,500 trees / 14,000 shrubs / 28 harbor palms, and creatures are simulated only nearby. Terrain LOD keeps fine geometry 50% farther out. Trees and landmarks extend across the map to 12 km; foliage fades by projected pixel size, replacing the old 180 m shrub cutoff and 50% distant crown thinning. Clearer coastal haze preserves distant island contrast. Up to 850 additional boulders reuse the original instanced rock renderer along the real shorelines. The original detailed cloud and water shaders remain enabled.
+```sh
+npm install
+npm run dev
+```
 
-On the development M5 MacBook Air (24 GB), the improved native-resolution build measured about 52–54 fps at the harbor. A six-second cross-channel flight sample measured a median 54 fps, minimum 50 fps, and maximum 56 fps. A nighttime lighthouse view showed approximately 41 fps. With cars added, a six-second driving check measured 46–54 fps (median 52 fps) at native resolution. These are short local samples, not a guarantee across every view or during shader compilation.
+Open http://127.0.0.1:5190 in a WebGPU-capable Chrome browser. The first launch compiles shaders. On this Mac, `Play Coastlove.command` also launches the project.
 
 ```sh
 npm test
@@ -61,11 +67,16 @@ npm run test:traffic
 npm run build
 ```
 
-Browser integration checks: after loading the game, run `await (await import('/test/california-browser.mjs')).checkCalifornia(__app)` in development tools. This tests numeric controls, every arrival, time direction and midnight wrapping, night effects, characters, story saving, and completion, then restores journal data. `await (await import('/test/traffic-browser.mjs')).checkTraffic(__app)` checks actual road clearances, NPC driving, E entry/exit, braking, safe arrivals, and vehicle handoffs. Run it while on foot.
+Checks cover flight input direction at four compass headings, pitch and clearance, statewide geographic bounds, stable town placement, all 40 safe arrivals with buildings, both road lanes, traffic after all 30 town visits, regional bird habitats and budgets, vegetation limits and distant terrain coverage. The traffic suite also runs ten simulated minutes of NPC driving, takeover, braking, safe exit and off-road recovery.
+
+In the development browser, `await (await import('/test/california-browser.mjs')).checkCalifornia(__app)` exercises numeric controls, arrivals, Z time scrubbing, stories and journal saving; it restores journal data afterward. `await (await import('/test/traffic-browser.mjs')).checkTraffic(__app)` checks vehicle interactions; start on foot.
+
+`scripts/build-coast.py path/to/ne_10m_land.geojson` regenerates the shoreline and scenic route (Python with Shapely). Geometry is committed, so normal builds need no map download or Python packages. Pushing `main` builds and deploys through GitHub Actions to GitHub Pages.
 
 ## Sources and credits
 
-- [Tidewater](https://github.com/dgreenheck/tidewater), MIT — original engine and world systems. Original project notes are in [TIDEWATER.md](TIDEWATER.md). Asset credits and licenses remain with their files.
-- [Natural Earth land polygons](https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/), public domain — real shoreline geometry in `src/california/Coastline.js`.
-- [National Park Service maps](https://www.nps.gov/chis/planyourvisit/maps.htm) — regional reference.
-- Characters reuse the credited Rocketbox assets already distributed with Tidewater.
+- [Tidewater](https://github.com/dgreenheck/tidewater), MIT — original engine and world systems. Original notes remain in [TIDEWATER.md](TIDEWATER.md); asset credits and licenses remain with their files.
+- [Natural Earth land polygons](https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/), public domain — shoreline geometry.
+- [California Department of Finance city populations](https://dof.ca.gov/media/docs/forecasting/Demographics/estimates/E-1_2025_Press_Release.pdf) — largest-city selection.
+- National Park Service habitat references: [Channel Islands seabirds](https://www.nps.gov/chis/learn/nature/seabirds.htm), [Point Reyes birds](https://www.nps.gov/pore/planyourvisit/wildlife_viewing_birds.htm), [Redwood bird checklist](https://www.nps.gov/redw/learn/nature/upload/bird-checklist-2015-508.pdf), [Cabrillo birds](https://www.nps.gov/cabr/learn/nature/birds.htm).
+- Harbor characters reuse the credited Rocketbox assets distributed with Tidewater. New story residents use lightweight procedural figures; all story text is fictional.

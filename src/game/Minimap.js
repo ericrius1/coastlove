@@ -13,8 +13,8 @@ import { CHANDLERY } from './Chandlery.js';
 //   const map = new Minimap( hudEl, game );  map.update( dt );  map.highlight( [ 'joe', 'marta' ] )
 
 const N = 640; // baked canvas size (px)
-const EXT = 8192; // metres covered by the bake
-const X0 = - EXT / 2, Z0 = - EXT / 2; // world at canvas (0, 0): the island sits north of the bay
+const EXT = 2560; // metres covered by the bake
+// A small rolling bake preserves local resolution anywhere along the coast.
 const PPM = N / EXT; // canvas px per metre
 const ROWS_PER_FRAME = 48;
 
@@ -100,7 +100,7 @@ export class Minimap {
 
 	constructor( parent, game ) {
 
-		this.game = game;
+		this.game = game; this.mapX0=-EXT/2; this.mapZ0=-EXT/2;
 		const style = h( 'style' );
 		style.textContent = CSS;
 		document.head.append( style );
@@ -210,7 +210,7 @@ export class Minimap {
 		const end = Math.min( N, B.row + ROWS_PER_FRAME );
 		for ( let py = B.row; py < end; py ++ ) for ( let px = 0; px < N; px ++ ) {
 
-			const x = X0 + ( px + 0.5 ) / PPM, z = Z0 + ( py + 0.5 ) / PPM;
+			const x = this.mapX0 + ( px + 0.5 ) / PPM, z = this.mapZ0 + ( py + 0.5 ) / PPM;
 			const hgt = T.heightAt( x, z );
 			B.h[ py * N + px ] = hgt;
 			const k = idx( x, z );
@@ -276,7 +276,7 @@ export class Minimap {
 
 		const ctx = B.ctx;
 		ctx.putImageData( B.img, 0, 0 );
-		const P = ( x, z ) => [ ( x - X0 ) * PPM, ( z - Z0 ) * PPM ];
+		const P = ( x, z ) => [ ( x - this.mapX0 ) * PPM, ( z - this.mapZ0 ) * PPM ];
 
 		// village pads (house footprints)
 		ctx.fillStyle = `rgb(${ C.pad.join( ',' ) })`;
@@ -288,7 +288,11 @@ export class Minimap {
 
 		}
 
-		// the pier and its head
+		// Nearby roads and building footprints are crisp at walking zoom.
+  const terrain=this.game.app.terrainData;ctx.strokeStyle='#e4d1a0';ctx.lineWidth=2;
+  for(const route of terrain.routes||[]){ctx.beginPath();let started=false;for(const p of route.points){const [x,y]=P(p.x,p.z);if(x<0||y<0||x>N||y>N){started=false;continue;}if(started)ctx.lineTo(x,y);else{ctx.moveTo(x,y);started=true;}}ctx.stroke();}
+  ctx.fillStyle='#a1a995';for(const town of this.game.app.coastalTowns?.groups||[])for(const b of town.boxes){const [x,y]=P(b.x,b.z);if(x<0||y<0||x>N||y>N)continue;ctx.fillRect(x-b.half.x*PPM,y-b.half.z*PPM,b.half.x*2*PPM,b.half.z*2*PPM);}
+  // the pier and its head
 		const W = WORLD.pier;
 		ctx.fillStyle = '#d9c7a0';
 		ctx.strokeStyle = 'rgba(40, 30, 20, 0.55)';
@@ -309,8 +313,12 @@ export class Minimap {
 	// ---- per frame
 	update( dt ) {
 
-		this._bakeStep();
 		const app = this.game.app, cam = app.camera, p = app.player;
+  if(Math.abs(cam.position.x-this.mapX0-EXT/2)>EXT*.30||Math.abs(cam.position.z-this.mapZ0-EXT/2)>EXT*.30){
+   this.mapX0=Math.round(cam.position.x/256)*256-EXT/2;this.mapZ0=Math.round(cam.position.z/256)*256-EXT/2;
+   this._bake.row=0;this._bake.done=false;this._bake.img=this._bake.ctx.createImageData(N,N);
+  }
+  this._bakeStep();
 		if ( this._viewSize < 0 || ! this._ro ) this._viewSize = this.view.clientWidth;
 		const size = this._viewSize;
 		if ( ! size ) return;
@@ -341,7 +349,7 @@ export class Minimap {
 		// map: player at the centre, forward up
 		const rot = - Math.PI / 2 - Math.atan2( fz, fx );
 		const s = kpm / PPM;
-		this._setStyle( this.canvas, 'transform', `translate(${ R }px, ${ R }px) rotate(${ rot }rad) scale(${ s }) translate(${ - ( x - X0 ) * PPM }px, ${ - ( z - Z0 ) * PPM }px)` );
+		this._setStyle( this.canvas, 'transform', `translate(${ R }px, ${ R }px) rotate(${ rot }rad) scale(${ s }) translate(${ - ( x - this.mapX0 ) * PPM }px, ${ - ( z - this.mapZ0 ) * PPM }px)` );
 
 		const place = ( el, dx, dz, edgeInset, arrow ) => {
 

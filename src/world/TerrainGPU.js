@@ -1,4 +1,4 @@
-import { Vector3 } from '../engine/math/index.js';
+import { Vector3, Vector4 } from '../engine/math/index.js';
 import { Texture } from '../engine/gpu/Texture.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { ShaderModule, UniformBlock } from '../engine/gpu/Shader.js';
@@ -86,6 +86,7 @@ export class TerrainGPU {
 			size: [ 'f32', terrain.size ],
 			res: [ 'f32', res ],
 			shoreRes: [ 'f32', 1 ],
+			nearShore: [ 'vec4f', new Vector4(0,0,0,1) ],
 			sunBake: [ 'vec3f', new Vector3( 0, 1, 0 ) ],
 			sunBaked: [ 'f32', 0 ], // 0 until the first bake: everything lit
 		}, { label: 'terrainParams' } );
@@ -95,6 +96,7 @@ export class TerrainGPU {
 
 		// placeholder until the shore field is set (1 texel, no waves)
 		this.shoreTexture = dataTexture( new Float32Array( [ 1e4, 0, 0, 0 ] ), 1, 1, 'rgba32float', 'terrainShoreField' );
+		this.nearShoreTexture=dataTexture(new Float32Array([1e4,0,-1,0]),1,1,'rgba32float','localShoreField');
 		if ( shoreField ) this.setShoreField( shoreField );
 		this._initSunShadow();
 
@@ -108,6 +110,7 @@ export class TerrainGPU {
 				terrainSplatTex: { texture: this.splatTexture },
 				terrainDetailTex: detailBinding(),
 				terrainShoreTex: { texture: () => this.shoreTexture, sampleType: 'unfilterable-float' },
+				terrainNearShoreTex: { texture: () => this.nearShoreTexture, sampleType: 'unfilterable-float' },
 				terrainSunShadowTex: { texture: this.sunShadowTexture },
 			},
 			code: TERRAIN_WGSL,
@@ -124,6 +127,12 @@ export class TerrainGPU {
 		this.timings = { ...maps.ms, detail: this.detailTexture.userData.ms, total: performance.now() - t0 };
 
 	}
+
+ setNearShoreField(f){
+  if(this.nearShoreTexture.width!==f.res){this.nearShoreTexture.destroy();this.nearShoreTexture=dataTexture(f.data,f.res,f.res,'rgba32float','localShoreField');}
+  else this.nearShoreTexture.upload(f.data);
+  this.uniforms.fields.nearShore.value.set(f.x,f.z,f.size,f.res);
+ }
 
 	// ------------------------------------------------------------ heightfield sun shadow
 
@@ -277,7 +286,18 @@ fn terrainShoreSample( xz: vec2f ) -> vec4f {
 	let b = textureLoad( terrainShoreTex, min( ii + vec2i( 1, 0 ), mx ), 0 );
 	let c = textureLoad( terrainShoreTex, min( ii + vec2i( 0, 1 ), mx ), 0 );
 	let d = textureLoad( terrainShoreTex, min( ii + vec2i( 1, 1 ), mx ), 0 );
-	return mix( mix( a, b, t.x ), mix( c, d, t.x ), t.y );
+	var result=mix( mix( a, b, t.x ), mix( c, d, t.x ), t.y );
+ let near=terrainParams.nearShore;
+ if(near.z>0.0){
+  let uv=(xz-near.xy)/near.z+0.5;
+  let inside=min(min(uv.x,uv.y),min(1.0-uv.x,1.0-uv.y));
+  if(inside>0.0){
+   let p=clamp(uv*near.w-0.5,vec2f(0),vec2f(near.w-1.001));let ij=vec2i(floor(p));let f=fract(p);
+   let local=mix(mix(textureLoad(terrainNearShoreTex,ij,0),textureLoad(terrainNearShoreTex,ij+vec2i(1,0),0),f.x),mix(textureLoad(terrainNearShoreTex,ij+vec2i(0,1),0),textureLoad(terrainNearShoreTex,ij+vec2i(1,1),0),f.x),f.y);
+   result=mix(result,local,smoothstep(0.02,0.14,inside));
+  }
+ }
+ return result;
 }
 
 // 0 (in the terrain's shadow) .. 1 (lit) for a world position, soft penumbra that widens with the

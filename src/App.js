@@ -1,3 +1,5 @@
+import { LocalShore } from './california/LocalShore.js';
+import { CoastalTowns } from './california/CoastalTowns.js';
 import { COAST_VIEW } from './california/ViewQuality.js';
 import { Exploration } from './exploration/Exploration.js';
 import { Vector3, Euler, Color, MathUtils, Mesh } from './engine/index.js';
@@ -143,6 +145,7 @@ export class App {
 		// data is derived (shore field, GPU textures, meshes)
 		await progress( 0.12, 'Building the village…' );
 		this.village = new Village( { scene, terrain: this.terrainData, colliders: this.colliders } );
+		this.coastalTowns = new CoastalTowns(this);
 		if ( ! qs.has( 'noVeg' ) ) {
 
 			await progress( 0.14, 'Planting coastal groves…' );
@@ -154,6 +157,7 @@ export class App {
 		await progress( 0.19, 'Rolling in the swell…' );
 		this.shoreField = computeShoreField( this.terrainData, { res: 512, swellDir: [ WORLD.swellDir.x, WORLD.swellDir.y ] } );
 		this.terrainGPU = new TerrainGPU( this.terrainData, this.shoreField );
+		this.localShore = new LocalShore(this);
 		// terrain and rocks apply the heightfield sun shadow (long hill shadows) in their own lighting
 		this.terrain = new Terrain( { scene, terrainData: this.terrainData, terrainGPU: this.terrainGPU, renderer } );
 		this.rocks = new Rocks( { scene, terrain: this.terrain, village: this.village, colliders: this.colliders } );
@@ -684,6 +688,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		// drawn while any part of the view can be under water (the specks above the surface are dropped)
 		this.marineSnow.update( this.camera, this.camera.position.y < ( this.cameraWaterHeight ?? 0 ) + LENS_REACH );
 		this.airMotes.update( dt, this.camera, this.cameraWaterHeight ?? 0 );
+		this.localShore?.update(this.player.position);
 		if ( this.shoreSim ) this.shoreSim.update();
 		this.underwaterLighting.update( this.camera );
 		this.breakers.update( this.camera );

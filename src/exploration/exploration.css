@@ -8,3 +8,5 @@
 @media(max-height:700px){.exp-card{top:105px}.exp-controls{min-height:28px;line-height:1.5}.exp-ui h1{margin-bottom:12px}.exp-clock{bottom:15px}.exp-journal{top:35px}}
 
 .exp-car-stop{width:100%;text-align:left;font-size:10px!important;padding:7px 9px!important;color:#d7d4b7!important}.exp-car-stop kbd{float:right}
+
+.exp-region-filter{display:block;width:100%;margin:8px 0 18px;padding:10px;background:#234439;color:#eee2c4;border:1px solid #abb79355;border-radius:5px}.exp-filter-label{font-size:10px;color:#c4cfb8}.exp-map{touch-action:none}

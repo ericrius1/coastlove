@@ -29,6 +29,7 @@ Tidewater's ocean, sky, fishing, marine life, sound and boat physics remain. Nin
 | **A / D · W / S in flight** | Turn · speed up/down |
 | **Shift + W · L · Space / C** | Fast cruise · level nose · rise/descend |
 | **M** | Almost full-screen inset atlas: pan, zoom, search, or click anywhere to place a teleport pin and press Enter. The world keeps running. |
+| **F (map open)** | Center and zoom to your current location |
 | **Map drag / scroll or pinch** | Pan / zoom beneath the pointer; arrows and +/− also work |
 | **J** | Field notes, stories and picture quality |
 | **Hold Z + trackpad swipe** | Scrub time forward or backward |

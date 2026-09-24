@@ -43,7 +43,7 @@ const VILLAGE = WORLD.village.center;
 //            rubble, then the rock / sand / path / gully masks
 export class TerrainData {
 
-	constructor( seed = 7 ) {
+	constructor( seed = 7, { landScale = 1 } = {} ) {
 
 		this.size = WORLD.terrainSize;
 		this.res = RES;
@@ -68,6 +68,16 @@ export class TerrainData {
 		this._F = { wx: 0, wz: 0, f170: 0, und: 0, deep: 0, E: 0, gx: 0, gz: 0 };
 		this._out = { h: 0, rock: 0, d: 0, bz: 0, carve: 0 };
 		this.generate();
+		// Scale the entire sampled world, including every material mask, before GPU
+		// baking. sqrt(2) in each horizontal axis doubles land area without
+		// doubling height or heightmap memory. Default keeps upstream callers intact.
+		if ( ! Number.isFinite( landScale ) || landScale < 1 ) throw new Error( 'Invalid island scale' );
+		this.landScale = landScale;
+		this.size *= landScale;
+		this.texel *= landScale;
+		this.origin *= landScale;
+		this.paths = PATHS.map( p => ( { w: p.w * landScale, pts: p.pts.map( ( [ x, z ] ) => [ x * landScale, z * landScale ] ) } ) );
+		for ( const site of this.rockSites ) { site.x *= landScale; site.z *= landScale; site.r *= landScale; }
 		this.buildMinMax();
 
 	}
@@ -75,15 +85,19 @@ export class TerrainData {
 	// signed coast distance (m): > 0 water, < 0 land
 	coastDistance( x, z ) {
 
+		const scale = this.landScale || 1;
+		x /= scale; z /= scale;
 		const F = this._fields( x, z, false );
 		const beachZone = beachZoneAt( x, z );
-		return { d: this._coast( x, z, F, beachZone ), beachZone };
+		return { d: this._coast( x, z, F, beachZone ) * scale, beachZone };
 
 	}
 
 	// height before the 1 m detail pass (analytic, slow path of the grid pipeline)
 	heightFn( x, z ) {
 
+		const scale = this.landScale || 1;
+		x /= scale; z /= scale;
 		const F = this._fields( x, z, true );
 		const o = this._base( x, z, F, this._out );
 		return { h: o.h, rock: o.rock };
@@ -891,7 +905,7 @@ export class TerrainData {
 	pathDistance( x, z ) {
 
 		let best = Infinity;
-		for ( const p of PATHS ) best = Math.min( best, polylineDistance( p.pts, x, z )[ 0 ] - p.w );
+		for ( const p of this.paths ) best = Math.min( best, polylineDistance( p.pts, x, z )[ 0 ] - p.w );
 		return best;
 
 	}

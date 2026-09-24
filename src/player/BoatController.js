@@ -182,6 +182,13 @@ export class BoatController {
 		this._qVersion = q.version;
 		this._qTime = q.resultTime;
 		const c = q.cpu, pts = q.resultInputs;
+		// Quick travel may leave an old GPU readback in flight. Do not apply
+		// water heights from the previous bay to the boat's new position.
+		if ( this.arrivalGuard ) {
+			const k = this.slot * 4;
+			if ( Math.hypot( pts[ k ] - this.arrivalGuard.x, pts[ k + 1 ] - this.arrivalGuard.z ) > 12 ) return;
+			this.arrivalGuard = null;
+		}
 		for ( let i = 0; i < this.samples.length; i ++ ) {
 
 			const k = ( this.slot + i ) * 4;

@@ -1,3 +1,5 @@
+import { STORIES } from './exploration/Stories.js';
+import { Exploration } from './exploration/Exploration.js';
 import { Vector3, Euler, Color, MathUtils, Mesh } from './engine/index.js';
 import { GPU } from './engine/gpu/GPU.js';
 import { SunShadows } from './engine/render/Shadows.js';
@@ -135,7 +137,8 @@ export class App {
 
 		// ---------------------------------------------------------------- island
 		await progress( 0.06, 'Shaping the island…' );
-		this.terrainData = new TerrainData();
+		this.terrainData = new TerrainData( 19, { landScale: Math.SQRT2 } );
+		this.terrainData.clearings = STORIES.map( ( { x, z } ) => ( { x, z, radius: 34 } ) );
 		this.colliders = new Colliders();
 		// the village flattens building pads into the heightmap: build it before any terrain
 		// data is derived (shore field, GPU textures, meshes)
@@ -346,6 +349,8 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		this.player.audio = this.audio;
 		// the fishing game (rod, bites, catch, cooler, fish stand)
 		this.game = new Game( this );
+		this.exploration = new Exploration( this );
+		await this.exploration.life.ready;
 		// the lanterns at Joe's fish stand and Marta's chandlery (lit from dusk like the village lamps);
 		// positions are in each stall's frame (x right, z toward the customer), turned by its yaw
 		for ( const [ s, lx, ly, lz ] of [ [ STAND, - 0.9, 1.85, 0.1 ], [ CHANDLERY, - 0.75, 1.58, - 1.45 ] ] ) {
@@ -611,7 +616,8 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		if ( s.timeSpeed !== 0 ) s.timeOfDay = ( s.timeOfDay + dt * s.timeSpeed + 24 ) % 24;
 
 		// ---- player / boat (boat physics first so the cameras follow this frame's pose)
-		if ( this.input.hit( 'KeyF' ) ) this.setFreeCam( ! this.freeCam );
+		this.exploration.beforeUpdate();
+		if ( this.input.hit( 'KeyF' ) && this.player.mode !== 'plane' && ! this.exploration.paused ) this.setFreeCam( ! this.freeCam );
 		if ( this.input.hit( 'KeyT' ) ) this.toggleTime();
 		if ( this.input.hit( 'KeyL' ) ) {
 
@@ -626,12 +632,31 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 			if ( this.ui ) this.ui.ui.toast( this.audio.muted ? 'Sound off' : 'Sound on' );
 
 		}
+		// Reading the journal releases the throttle; keep following a drifting
+		// boat below so the player cannot drive away underneath a frozen camera.
+		if ( this.exploration.paused ) {
+			this.boatCtl.throttle = 0;
+			this.boatCtl.throttleTarget = 0;
+		}
 		this.boatCtl.update( dt );
 		this.boatSpray.update( dt );
 		this.wake.update( dt );
-		if ( this.freeCam ) this.fly.update( dt );
-		else this.player.update( dt );
+		const blocked = this.exploration.paused;
+		const wasEnabled = this.input.enabled;
+		if ( blocked ) this.input.enabled = false;
+		if ( ! blocked ) {
+			if ( this.freeCam ) this.fly.update( dt );
+			else if ( this.player.mode === 'plane' ) {
+				this.exploration.plane.update( dt, this.input, this.camera );
+				this.player.position.copy( this.exploration.plane.position );
+				this.player.yaw = this.exploration.plane.heading + Math.PI;
+				this.player.prompt = null;
+			} else this.player.update( dt );
+		} else if ( this.player.mode === 'boat' || this.player.mode === 'deck' ) this.player.update( dt );
+		else this.input.consumeLook();
 		this.game.update( dt );
+		this.input.enabled = wasEnabled;
+		this.exploration.update( dt );
 		this.updateSun();
 
 		this.atmosphere.update( dt, this.camera.position.y );

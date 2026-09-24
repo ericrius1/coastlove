@@ -67,10 +67,10 @@ const row = ( keys, text ) => `<div class="gm-guide-row"><span class="k">${ keys
 
 const CARDS = [
 	{
-		eyebrow: 'Welcome to Tidewater',
-		title: 'Fish the island, sell your catch',
-		body: `<p>Catch fish from the <b>beach</b>, the <b>pier</b> or your <b>boat</b>. Different fish bite in the shallows, around the pier, over the reef and out in deep water, and they change with the time of day.</p>
-			<p>Sell your catch to <b>Joe</b> at the fish stand by the pier, then spend the money on upgrades from <b>Marta</b> at the chandlery by the boathouse: stronger line, a faster reel, a bigger hold, a fish finder and lights for fishing at night.</p>`,
+		eyebrow: 'Welcome to Windward Isle',
+		title: 'An island of small stories',
+		body: `<p>Meet <b>Inés, Rowan, Sana, and Elias</b>. Follow the bearing and distance on the travel card, then press <b>E</b> nearby to hear their stories. Find goats and tortoises wandering the island. Your <b>J</b> field journal remembers every discovery.</p>
+			<p>Press <b>1</b> for the boat, <b>2</b> for Marigold the seaplane, or <b>3</b> to arrive safely on land. In flight: <b>A/D</b> turn, <b>W/S</b> change speed, <b>Space/C</b> climb and descend. Fishing, Joe’s market and Marta’s upgrades are still here whenever you want them.</p>`,
 	},
 	{
 		eyebrow: 'Fishing',
@@ -238,7 +238,7 @@ export class Guide {
 		this.title.textContent = c.title;
 		this.body.innerHTML = c.body;
 		this.dots.forEach( ( d, j ) => d.classList.toggle( 'is-on', j === i ) );
-		this.nextBtn.textContent = i === CARDS.length - 1 ? 'Let\'s fish' : 'Next';
+		this.nextBtn.textContent = i === CARDS.length - 1 ? 'Let\'s explore' : 'Next';
 		if ( this.minimap ) this.minimap.highlight( i === CARDS.length - 1 ? [ 'joe', 'marta' ] : [] );
 		this._whereT = 0;
 		if ( ! this.open ) {

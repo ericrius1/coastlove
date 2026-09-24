@@ -2139,10 +2139,13 @@ export class UI {
 				<div class="tw-help-grid">
 					<section>
 						<h3>Move</h3>
-						${ row( wasd, 'Move' ) }
+						${ row( k( '1', '2', '3' ), 'Boat / seaplane / safely ashore<small>Number row or numpad</small>' ) }
+						${ row( k( 'J' ), 'Field journal and story compass' ) }
+						${ row( wasd, 'Move · plane: speed and turning' ) }
 						${ row( mouse, 'Look around<small>Click to capture</small>' ) }
 						${ row( k( 'Shift' ), 'Sprint, boat boost' ) }
-						${ row( k( 'Space' ), 'Jump, swim up' ) }
+						${ row( k( 'Space' ), 'Jump, swim up, plane climb' ) }
+						${ row( k( 'C' ), 'Plane descend (terrain following)' ) }
 						${ row( k( 'C' ), 'Crouch, dive' ) }
 					</section>
 					<section>
@@ -2188,13 +2191,14 @@ export class UI {
 		el.innerHTML = `
 			<div class="tw-start-inner">
 				${ brandMark( 'tw-start-mark' ) }
-				<div class="tw-start-title">TIDEWATER</div>
+				<div class="tw-start-title">WINDWARD ISLE</div>
 				<button type="button" class="tw-start-cta"><span class="tw-start-pulse" aria-hidden="true"></span>${ icon( 'mouse' ) }<span>Click to explore</span></button>
 				<div class="tw-start-keys">
 					<span><span class="tw-wasd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>Move</span>
 					<span><kbd class="tw-kbd-ico">${ icon( 'mouse' ) }</kbd>Look</span>
 					<span><kbd>E</kbd>Interact</span>
-					<span><kbd>H</kbd>Settings</span>
+					<span><kbd>1</kbd>Boat <kbd>2</kbd>Plane <kbd>3</kbd>On foot</span>
+					<span><kbd>J</kbd>Field journal</span>
 					<span><kbd>F1</kbd>All controls</span>
 				</div>
 			</div>`;

@@ -1,4 +1,8 @@
-# Tidewater
+# Tidewater · Windward Isle
+
+This local extension adds a larger island, instant boat/seaplane switching, wandering goats and tortoises, four story NPCs, and a saved exploration journal. **[Play guide and extension notes → WINDWARD.md](WINDWARD.md)**
+
+The original Tidewater documentation follows.
 
 An island fishing game for the browser. Cast from the pier, the beach or your own boat, fight the fish,
 sell your catch to Joe at the fish stand, and spend it on better gear at Marta's chandlery. Around it is a

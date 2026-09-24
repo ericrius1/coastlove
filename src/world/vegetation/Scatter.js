@@ -203,6 +203,11 @@ export class VegSite {
 	// Common exclusion test; returns true if a plant of radius `clear` may stand at (x, z).
 	allowed( x, z, c, { minH = RULES.minHeight, maxBare = 0.35, clear = 0, big = false, maxSand = 0.5, maxPath = 0.3 } = {} ) {
 
+		// Give the story locations a small clearing so residents and animals
+		// remain visible and approachable under the expanded forest canopy.
+		for ( const clearing of this.terrain.clearings || [] ) {
+			if ( Math.hypot( x - clearing.x, z - clearing.z ) < clearing.radius + ( big ? 8 : clear ) ) return false;
+		}
 		if ( c.h < minH || c.bare > maxBare || c.sand > maxSand || c.path > maxPath ) return false;
 		// nothing rooted on the embankment face
 		if ( c.scarp > 0.3 ) return false;
@@ -342,7 +347,8 @@ export function scatterVegetation( site, seed = 99 ) {
 
 	// island bounds (land lies roughly within these); the headlands either side of the bay reach
 	// south to z ~ +320 (HZ1)
-	const X0 = - 660, X1 = 660, Z0 = - 900, Z1 = - 20, HZ1 = 320;
+	const islandScale = site.terrain.landScale || 1;
+	const X0 = - 660 * islandScale, X1 = 660 * islandScale, Z0 = - 900 * islandScale, Z1 = - 20 * islandScale, HZ1 = 320 * islandScale;
 
 	// --- broadleaf trees: a closed canopy on the forest ground (hillsides, gullies), thinning at
 	// the forest edge into scattered trees; a few lone trees on the meadow ----------------------
@@ -651,7 +657,7 @@ export function buildGrassMask( site ) {
 	for ( let j = 1; j < res - 1; j ++ ) {
 
 		const z = t.origin + ( j + 0.5 ) * texel;
-		if ( z > 0 || z < - 950 ) continue;
+		if ( z > 0 || z < - 950 * ( t.landScale || 1 ) ) continue;
 		for ( let i = 1; i < res - 1; i ++ ) {
 
 			const k = j * res + i;

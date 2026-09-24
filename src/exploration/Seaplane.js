@@ -58,11 +58,16 @@ export class Seaplane {
 		dt = Math.min( dt, 0.05 );
 		this.time += dt;
 		const steer = Number( input.down( 'KeyA' ) ) - Number( input.down( 'KeyD' ) );
+		// Pointer lock reports one-finger trackpad movement as mouse motion. Turn
+		// by the gesture's distance so the response does not depend on frame rate.
+		const look = input.consumeLook();
+		const trackpadTurn = Math.max( - 0.12, Math.min( 0.12, look.x * 0.0022 ) );
 		const boost = input.down( 'ShiftLeft' ) || input.down( 'ShiftRight' );
 		const targetSpeed = boost ? 62 : input.down( 'KeyW' ) ? 42 : input.down( 'KeyS' ) ? 14 : 26;
 		this.speed += ( targetSpeed - this.speed ) * ( 1 - Math.exp( - dt * 1.8 ) );
-		this.heading += steer * dt * 0.52;
-		this.bank += ( - steer * 0.29 - this.bank ) * ( 1 - Math.exp( - dt * 3.5 ) );
+		this.heading += steer * dt * 0.52 + trackpadTurn;
+		const bankSteer = Math.max( - 1, Math.min( 1, steer + trackpadTurn / Math.max( dt * 0.52, 0.001 ) ) );
+		this.bank += ( - bankSteer * 0.29 - this.bank ) * ( 1 - Math.exp( - dt * 3.5 ) );
 		const vertical = Number( input.down( 'Space' ) ) - Number( input.down( 'KeyC' ) );
 		this.cruiseAltitude = Math.max( 20, Math.min( 550, this.cruiseAltitude + vertical * 24 * dt ) );
 		this.position.x += Math.sin( this.heading ) * this.speed * dt;
@@ -90,6 +95,5 @@ export class Seaplane {
 		this._camera.lerp( this._target, 1 - Math.exp( - dt * 5 ) );
 		camera.position.copy( this._camera );
 		camera.lookAt( this.position.x + Math.sin( this.heading ) * 12, this.position.y, this.position.z + Math.cos( this.heading ) * 12 );
-		input.consumeLook();
 	}
 }

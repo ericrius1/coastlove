@@ -70,7 +70,7 @@ const CARDS = [
 		eyebrow: 'Welcome to Coastlove',
 		title: 'The coast is calling',
 		body: `<p>Meet <b>Inés, Rowan, Sana, and Elias</b>. Follow the bearing and distance on the travel card, then press <b>E</b> nearby to hear their stories. Find island foxes and sea lions wandering the island. Your <b>J</b> coastal chart remembers every discovery and offers easy visits. Hold <b>Z</b> and swipe your trackpad with two fingers to travel through the hours. The real Santa Barbara Channel coastline is compressed for play, with imagined paths and people.</p>
-			<p>Press <b>1</b> for the boat, <b>2</b> for Marigold the seaplane, or <b>3</b> to arrive safely on land. In flight: <b>A/D</b> turn, <b>W/S</b> change speed, <b>Space/C</b> climb and descend. Fishing, Joe’s market and Marta’s upgrades are still here whenever you want them.</p>`,
+			<p>Press <b>1</b> for the boat, <b>2</b> for Marigold the seaplane, or <b>3</b> to arrive safely on land. In flight, move one finger left or right on the trackpad to steer. <b>A/D</b> also turn, <b>W/S</b> change speed, and <b>Space/C</b> set your height. Fishing, Joe’s market and Marta’s upgrades are still here whenever you want them.</p>`,
 	},
 	{
 		eyebrow: 'Fishing',

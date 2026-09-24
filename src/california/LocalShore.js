@@ -12,6 +12,6 @@ export class LocalShore {
   const t=this.app.terrainData;if(Math.abs(t.coastDistance(position.x,position.z).d)>600||position.y>Math.max(0,t.heightAt(position.x,position.z))+220)return;
   const x=Math.round(position.x/128)*128,z=Math.round(position.z/128)*128,size=1024,res=256,step=size/res,heights=new Float32Array(res*res);
   for(let j=0;j<res;j++)for(let i=0;i<res;i++)heights[j*res+i]=t.heightAt(x-size/2+(i+.5)*step,z-size/2+(j+.5)*step);
-  this.pending=true;this.worker.postMessage({heights,size,res,x,z,domainSize:t.size,id:++this.id},[heights.buffer]);
+  this.pending=true;this.worker.postMessage({heights,size,res,x,z,id:++this.id},[heights.buffer]);
  }
 }

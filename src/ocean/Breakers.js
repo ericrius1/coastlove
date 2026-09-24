@@ -294,10 +294,11 @@ fn main( @builtin( global_invocation_id ) gid: vec3u ) {
 	breakersCrestW[ base + 2u ] = vec4f( 0.0 );
 	breakersCrestW[ base + 5u ] = vec4f( 0.0 );
 
+	let referenceCycle = shorePhaseAt( o ).cycle;
 	var sPrev = 0.0;
 	for ( var k = 0; k < ${ K }; k++ ) {
 		let dist = f32( k ) * ${ f( STEP ) };
-		let s = shorePhaseAt( o + n * dist ).s;
+		let s = shoreRelativePhase( o + n * dist, referenceCycle );
 		// s grows seaward: a crest (integer phase) lies between this sample and the previous one
 		if ( k > 0 && floor( s ) > floor( sPrev ) ) {
 			let m = floor( s );
@@ -308,7 +309,7 @@ fn main( @builtin( global_invocation_id ) gid: vec3u ) {
 			var sHi = s;
 			var x = lo + ( m - sLo ) / max( sHi - sLo, 1e-5 ) * ${ f( STEP ) };
 			for ( var it = 0; it < 2; it++ ) {
-				let sx = shorePhaseAt( o + n * x ).s;
+				let sx = shoreRelativePhase( o + n * x, referenceCycle );
 				if ( sx < m ) {
 					lo = x;
 					sLo = sx;
@@ -319,7 +320,7 @@ fn main( @builtin( global_invocation_id ) gid: vec3u ) {
 				x = lo + ( m - sLo ) / max( sHi - sLo, 1e-5 ) * ( hi - lo );
 			}
 			let pc = o + n * x;
-			breakersProcessCrest( i, pc, m );
+			breakersProcessCrest( i, pc, m + f32( referenceCycle ) );
 		}
 		sPrev = s;
 	}

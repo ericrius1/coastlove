@@ -11,7 +11,7 @@
     "test:traffic": "node test/traffic.mjs",
     "test:controls": "node test/controls.mjs",
     "test:metric": "node test/metric-world.mjs && node test/arcade-car.mjs && node test/large-world.mjs",
-    "test:water": "node test/water-temporal.mjs"
+    "test:water": "node test/shore-clock.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.0",

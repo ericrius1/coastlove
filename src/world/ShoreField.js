@@ -86,7 +86,7 @@ export function computeShoreField( terrain, { res = 512, swellDir = [ 0, - 1 ], 
 
 	}
 
-	const T = new Float32Array( N ).fill( Infinity );
+	const T = new Float64Array( N ).fill( Infinity );
 	const state = new Uint8Array( N ); // 0 far, 1 trial, 2 known
 	const heap = new MinHeap( N * 4 );
 	const [ sdx, sdz ] = swellDir;
@@ -99,7 +99,10 @@ export function computeShoreField( terrain, { res = 512, swellDir = [ 0, - 1 ], 
 		const k = j * res + i;
 		if ( speed[ k ] <= 0 ) continue;
 		const x = origin + ( i + 0.5 ) * h, z = origin + ( j + 0.5 ) * h;
-		T[ k ] = ( x * sdx + z * sdz ) / c0 + size; // offset keeps T positive
+		// Signed arrival times are valid: the solver only requires finite values.
+		// A domain-size bias becomes millions of seconds at California scale and
+		// destroys both sub-frame timing and local gradients when packed as f32.
+		T[ k ] = ( x * sdx + z * sdz ) / c0;
 		state[ k ] = 1;
 		heap.push( T[ k ], k );
 
@@ -153,7 +156,7 @@ export function computeShoreField( terrain, { res = 512, swellDir = [ 0, - 1 ], 
 	// far away (e.g. the other side of the island) sweep across the land in a single pass.
 	const extend = ( F, passes, inc ) => {
 
-		const prev = new Float32Array( N );
+		const prev = new Float64Array( N );
 		for ( let pass = 0; pass < passes; pass ++ ) {
 
 			prev.set( F );
@@ -178,18 +181,18 @@ export function computeShoreField( terrain, { res = 512, swellDir = [ 0, - 1 ], 
 	};
 
 	// arrival time at the nearest shoreline, extended unchanged onto land (swash timing)
-	const Tshore = new Float32Array( T );
+	const Tshore = new Float64Array( T );
 	extend( Tshore, 40, 0 );
 
 	// extend T onto land (so the swash zone has a continuous phase), continuing slowly up the beach
-	const Tfilled = new Float32Array( T );
+	const Tfilled = new Float64Array( T );
 	extend( Tfilled, 24, h / 1.5 );
 
 	// smooth to remove first-order FMM kinks (keeps phase monotonic)
 	let Ts = Tfilled;
 	for ( let it = 0; it < 3; it ++ ) {
 
-		const out = new Float32Array( N );
+		const out = new Float64Array( N );
 		for ( let j = 0; j < res; j ++ ) for ( let i = 0; i < res; i ++ ) {
 
 			const k = j * res + i;

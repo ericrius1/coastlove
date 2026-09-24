@@ -272,21 +272,14 @@ fn fragment( in: FSIn ) -> vec4f {
 	let meanLuma = luminance( mean.rgb );
 	let thinFeature = smoothstep( 0.0, 0.2, abs( luminance( currentColor.rgb ) - meanLuma ) / meanLuma );
 	let isDepthChanged = abs( closestDepth - previousDepth ) > taau.depthThreshold;
-	// Wave crests and reflections move even when camera-only motion vectors are zero.
-	// A thin-feature lock belongs to static geometry, not an animated water surface.
-	let canLock = isValidUV && ! isDepthChanged && ! isWater;
+	let canLock = isValidUV && ! isDepthChanged;
 	let gatedThinFeature = select( 0.0, thinFeature, canLock );
 	let lock = sat( gatedThinFeature );
 	let lockedHistoryColor = mix( clippedHistoryColor, historyColor, lock );
 
-	// Water has camera-only motion vectors, so a long static history holds wave highlights
-	// in place until variance clipping abruptly releases them. Give water a short,
-	// time-based history: the response stays smooth at 30, 60 and 120 fps while still
-	// filtering sub-pixel ripples. Keep the original accumulation for buildings and trees.
-	let waterWeight = 1.0 - exp( - clamp( frame.dt, 0.0, 0.1 ) / 0.08 );
-	let baseWeight = select( taau.frameWeight, max( taau.frameWeight, waterWeight ), isWater );
+	// fast camera motion trusts the current frame more; capped on water, whose fine detail shimmers under the jitter
 	let motionW = select( motionFactor, min( motionFactor, 0.15 ), isWater );
-	let currentWeight = select( 1.0, sat( baseWeight + motionW ), hasValidHistory );
+	let currentWeight = select( 1.0, sat( taau.frameWeight + motionW ), hasValidHistory );
 	return taauFlickerReduction( currentColor, lockedHistoryColor, currentWeight );
 }
 `;

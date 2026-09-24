@@ -19,7 +19,7 @@ import { G, GRAVITY } from '../engine/render/Frame.js';
 //   fn shoreEvaluate( xz: vec2f, depth: f32, groundH: f32 ) -> ShoreSample          (with the normal: the water mesh)
 //   fn shoreEvaluateNoNormal( xz, depth, groundH ) -> ShoreSample                    (no normal: queries)
 //   fn shoreEvaluateWorld( xz, depth, groundH ) -> ShoreSample                       (a fixed world point: ShoreSim)
-//   struct ShorePhase { sh: vec4f, T: f32, dir: vec2f, exposure: f32, along: f32, s: f32 }
+//   struct ShorePhase { sh: vec4f, T: f32, dir: vec2f, exposure: f32, along: f32, s: f32, cycle: i32 }
 //   fn shorePhaseAt( xz: vec2f ) -> ShorePhase
 //   fn shoreWaveAmp( m: f32, along: f32 ) -> f32
 //   fn shoreShape( u, A, d, lam ) -> vec4f                     ( x, y, foam, b )
@@ -64,8 +64,9 @@ fn ${ name }( xz: vec2f, depth: f32, groundH: f32 ) -> ShoreSample {
 	let lam = c * Tp;
 
 	let s = ph.s;
-	let m = floor( s + 0.5 );
-	let u = s - m;
+	let localCycle = floor( s + 0.5 );
+	let m = f32( ph.cycle ) + localCycle;
+	let u = s - localCycle;
 
 	// wave height with smooth hand-over between consecutive waves at the trough
 	let A0 = shoreWaveAmp( m, along );
@@ -105,7 +106,7 @@ ${ mode === 'normal' ? `	{
 		// stretches, a lower, smoother churn in others (different for every wave).
 		let sx = u * lam; // rest position along the wave direction (m, seaward)
 		let t = frame.time;
-		let mW = floor( ph.s + 0.5 );
+		let mW = f32( ph.cycle ) + floor( ph.s + 0.5 );
 		let lumpy = sat( perlin2( vec2f( along * 0.045, mW * 3.7 ) ) * 1.2 + 0.55 );
 		let amp = roller * mix( 0.25, 0.7, lumpy );
 		let q1 = vec2f( along * 0.28, sx * 0.7 - t * 0.8 );
@@ -254,7 +255,7 @@ struct ShoreSample {
 
 struct ShoreMedium { scatter: vec3f, absorb: vec3f };
 
-struct ShorePhase { sh: vec4f, T: f32, dir: vec2f, exposure: f32, along: f32, s: f32 };
+struct ShorePhase { sh: vec4f, T: f32, dir: vec2f, exposure: f32, along: f32, s: f32, cycle: i32 };
 
 struct ShoreBreak {
 	db: f32, b: f32, Ash: f32, p: f32, meanP: f32, crestPeak: f32, yc: f32, yt: f32,
@@ -500,6 +501,19 @@ fn shoreSurfMedium( xz: vec2f, depth: f32 ) -> ShoreMedium {
 
 // ------------------------------------------------------------ evaluation at a point
 
+// Keep the fractional phase separate from the integer wave number. Subtracting a
+// statewide arrival time from frame.time first loses entire frames to f32 rounding
+// (the old two-million-second bias quantized the surf into 4–8 updates per second).
+// Wave numbers still identify the same crests for amplitude variation and foam.
+struct ShoreClock { phase: f32, cycle: i32 };
+fn shoreClock( arrival: f32, along: f32 ) -> ShoreClock {
+	// modf is intentional: separate fract()/floor() expressions can be
+	// reassociated into the lossy large subtraction by GPU fast-math compilers.
+	let now = modf( frame.time / shoreP.period );
+	let source = modf( arrival / shoreP.period );
+	return ShoreClock( now.fract - source.fract + shoreWobble( along ), i32( now.whole ) - i32( source.whole ) );
+}
+
 // Local wave phase data at a (Lagrangian) point: shared by evaluate() and the crest finder.
 fn shorePhaseAt( xz: vec2f ) -> ShorePhase {
 	let sh = terrainShoreSample( xz );
@@ -508,8 +522,15 @@ fn shorePhaseAt( xz: vec2f ) -> ShorePhase {
 	let exposure = length( dirE );
 	let dir = dirE / max( exposure, 1e-4 );
 	let along = dot( xz, vec2f( - dir.y, dir.x ) );
-	let s = ( frame.time - T ) / shoreP.period + shoreWobble( along );
-	return ShorePhase( sh, T, dir, exposure, along, s );
+	let clock = shoreClock( T, along );
+	return ShorePhase( sh, T, dir, exposure, along, clock.phase, clock.cycle );
+}
+
+// A short continuous phase along one breaker-search station. Subtract integer
+// wave numbers before converting to float, keeping secant refinement precise.
+fn shoreRelativePhase( xz: vec2f, referenceCycle: i32 ) -> f32 {
+	let ph = shorePhaseAt( xz );
+	return ph.s + f32( ph.cycle - referenceCycle );
 }
 
 // ------------------------------------------------------------ light through thin crests
@@ -528,8 +549,9 @@ fn shoreCrestPath( p: vec2f, d: f32, T: vec3f ) -> f32 {
 	// rays heading out through the back of the wave (a view from the beach side), near breakers
 	if ( env > 0.05 && tXi < -0.05 && d < 6.0 ) {
 		let lam = sqrt( clamp( d, 0.3, 25.0 ) * SHORE_GRAVITY ) * shoreP.period;
-		let m = floor( ph.s + 0.5 );
-		let u = ph.s - m;
+		let localCycle = floor( ph.s + 0.5 );
+		let m = f32( ph.cycle ) + localCycle;
+		let u = ph.s - localCycle;
 		let A = shoreWaveAmp( m, ph.along );
 		let P = shoreBreakParams( A, shoreBreakDepth( p, ph.dir, u, lam, d ) );
 		let s0 = shoreProfile( u, lam, P, false );
@@ -571,9 +593,10 @@ fn shoreSwashRunup( sh: vec4f, along: f32, groundH: f32 ) -> ShoreRunup {
 	let exposure = length( vec2f( sh.y, sh.z ) );
 	let Ts = sh.w;
 	let inland = max( groundH - frame.seaLevel, 0.0 ) / SHORE_BEACH_SLOPE;
-	let ss = ( frame.time - Ts ) / Tp + shoreWobble( along );
-	let ms = floor( ss );
-	let tau = ss - ms; // 0..1 time since that wave's bore reached the shoreline
+	let clock = shoreClock( Ts, along );
+	let localCycle = floor( clock.phase );
+	let ms = f32( clock.cycle ) + localCycle;
+	let tau = clock.phase - localCycle; // 0..1 time since that wave's bore reached the shoreline
 	let Am = shoreWaveAmp( ms, along );
 	// vertical run-up ~ H on this gentle beach, converted to a horizontal excursion
 	let RhMax = Am * 2.1 * shoreP.runup * sat( exposure * 1.4 ) / SHORE_BEACH_SLOPE;

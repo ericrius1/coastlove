@@ -1,5 +1,5 @@
-// Sample-based sound for the island: real field recordings only (public/audio, sources and licences in
-// public/audio/CREDITS.md). Nothing is synthesised. Files are fetched and decoded after the first user
+// Nature sound uses real field recordings (public/audio, sources and licences in
+// public/audio/CREDITS.md). Only the fictional story bell is synthesised. Files are fetched and decoded after the first user
 // gesture (resume()); boat, underwater, pier and night sounds load the first time they become audible.
 //
 // Surf is wave by wave, driven by the game's own shore waves (ShoreWaves): a CPU mirror of their phase
@@ -34,6 +34,7 @@
 
 import { WORLD } from '../world/WorldLayout.js';
 import { BANK } from './soundBank.js';
+import { habitatMix } from './habitatMix.js';
 
 const clamp = ( v, a, b ) => ( v < a ? a : v > b ? b : v );
 const lerp = ( a, b, t ) => a + ( b - a ) * t;
@@ -57,6 +58,8 @@ export const MIX = {
 	surfFar: - 31, // distant roar at 50 m from the shore (falls off slowly)
 	wind: - 36, // 7 m/s, at the top of a gust (gusts come and go; lulls are near silent)
 	palms: - 39, // inland among the trees in a gust
+	canopy: - 38, // sheltered wind in foliage, behind the near individual bird phrases
+	foliage: - 40, // occasional close rustles, with soft edges
 	crickets: - 33, // inland at night
 	pierLap: - 32, // water lapping the piles, 3 m away
 	reef: - 43, // underwater: snapping-shrimp crackle and low rumble (hydrophone), kept well in the background
@@ -114,7 +117,7 @@ const STEP = {
 };
 
 // max simultaneous one-shot voices per category (oldest is faded out beyond this)
-const LIMITS = { step: 3, swim: 2, splash: 3, trans: 2, hull: 3, gull: 2, crash: 7, wash: 5, back: 5, bird: 4, tern: 2, whale: 4, rod: 4, fish: 3, coin: 1 };
+const LIMITS = { step: 3, swim: 2, splash: 3, trans: 2, hull: 3, gull: 2, crash: 7, wash: 5, back: 5, bird: 4, tern: 2, whale: 4, rod: 4, fish: 3, coin: 1, detail: 2, bell: 3 };
 
 // loaded at resume(); everything else on first use
 const CORE = [ 'surf_crash', 'surf_wash', 'surf_backwash', 'surf_far', 'wind', 'palms', 'step_sand', 'step_wetsand', 'step_wood', 'step_water', 'step_grass', 'splash', 'swim' ];
@@ -140,6 +143,7 @@ export class SoundScape {
 		this._loading = new Map(); // name -> Promise
 		this._beds = new Map(); // name -> { src, gain, trim }
 		this._voices = {}; // category -> [ { src, gain, end } ]
+		this._liveVoices = new Set(); // includes retiring voices until their fade has ended
 		this._last = {}; // bank -> last slice index
 		this._acc = 0;
 		this._gullT = 6;
@@ -151,6 +155,10 @@ export class SoundScape {
 		this._engine = 0; // 0..1 engine running (ramped in the mixer)
 		this._engineOn = false;
 		this._gust = { v: 0.4, target: 0.6, t: 0 };
+		this._habitat = {};
+		this._detailT = 8;
+		this._bellAt = - Infinity;
+		this._loadAbort = new AbortController();
 		this._shore = shore;
 		this._stations = null;
 		this._stAt = { x: 1e9, z: 1e9, t: - 1e9 };
@@ -160,6 +168,7 @@ export class SoundScape {
 			lx: 0, ly: 1.7, lz: 0, fx: 0, fy: 0, fz: - 1, ux: 0, uy: 1, uz: 0,
 			u: 0, depth: 0, surf: 0.5, shoreDist: 60, onLand: true, wind: 7, day: 1, nearPier: false, hour: null,
 			shoreX: 0, shoreZ: 1,
+			habitat: 'auto', canopy: null, heightAboveGround: 0,
 			boat: { active: false, rpm: 0, speed: 0, x: 0, y: 0, z: 0, inside: false },
 		};
 		const sw = WORLD.swellDir || { x: - 0.12, y: - 1 };
@@ -245,6 +254,7 @@ export class SoundScape {
 
 		this._muted = !! m;
 		this._applyVolume();
+		if ( this._muted ) this._silence();
 
 	}
 
@@ -253,6 +263,7 @@ export class SoundScape {
 
 		this._volume = clamp( num( v, this._volume ), 0, 1 );
 		this._applyVolume();
+		if ( this._volume === 0 ) this._silence();
 
 	}
 
@@ -263,7 +274,7 @@ export class SoundScape {
 		try {
 
 			this._readState( state && typeof state === 'object' ? state : EMPTY );
-			if ( this.ctx.state !== 'running' ) return;
+			if ( this.ctx.state !== 'running' || this._muted || this._volume <= 0 ) return;
 			this._acc += clamp( num( dt, 1 / 60 ), 0, 0.25 );
 			if ( this._acc < 1 / 30 ) return;
 			const step = Math.min( this._acc, 0.25 );
@@ -274,6 +285,7 @@ export class SoundScape {
 			this._surf( step );
 			this._life( step );
 			this._birds( now, step );
+			this._foliage( now, step );
 			this._whale( now, step );
 			this._reel( now );
 
@@ -412,6 +424,74 @@ export class SoundScape {
 
 	}
 
+	// A small salvaged bell: a deliberately fictional, inharmonic bronze voice.
+	// Six related pitches let story places answer one another without a music bed.
+	bell( position, { note = 0, strength = 0.65 } = {} ) {
+
+		if ( ! this.enabled || this._muted || this._volume <= 0 ) return false;
+		const now = this.ctx.currentTime;
+		if ( now - this._bellAt < 0.65 ) return false;
+		this._bellAt = now;
+		return !! this._bellVoice( position, note, strength, now );
+
+	}
+
+	// An understated reply when a journal mystery opens; the final answer rises.
+	discovery( position, { chapter = 0, complete = false } = {} ) {
+
+		if ( ! this.enabled || this._muted || this._volume <= 0 ) return false;
+		const now = this.ctx.currentTime;
+		if ( now - ( this._discoveryAt ?? - Infinity ) < 1.5 ) return false;
+		this._discoveryAt = now;
+		const note = clamp( Math.floor( num( chapter, 0 ) ), 0, 5 );
+		this._bellVoice( position, note, 0.28, now );
+		this._bellVoice( position, complete ? 5 : ( note + 2 ) % 6, complete ? 0.4 : 0.2, now + ( complete ? 0.65 : 0.4 ) );
+		return true;
+
+	}
+
+	_bellVoice( position, note, strength, at ) {
+
+		const c = this.ctx, e = this.env, p = position || EMPTY;
+		const x = num( p.x, e.lx ), y = num( p.y, e.ly ), z = num( p.z, e.lz );
+		if ( Math.hypot( x - e.lx, y - e.ly, z - e.lz ) > 240 ) return null;
+		if ( ! this._bellBuffer ) {
+
+			// Render once and reuse one source per strike, instead of keeping a bank
+			// of oscillators running. No download or permanent audio nodes are needed.
+			const buffer = c.createBuffer( 1, Math.ceil( c.sampleRate * 5 ), c.sampleRate );
+			const data = buffer.getChannelData( 0 );
+			const modes = [ [ 1, 0.5, 1.65 ], [ 2, 0.18, 1.2 ], [ 2.756, 0.12, 0.8 ], [ 4.07, 0.07, 0.45 ], [ 5.404, 0.04, 0.28 ] ];
+			for ( let i = 0; i < data.length; i ++ ) {
+
+				const t = i / c.sampleRate;
+				let value = 0;
+				for ( const [ ratio, level, decay ] of modes ) value += Math.sin( Math.PI * 2 * 196 * ratio * t ) * level * Math.exp( - t / decay );
+				data[ i ] = value * 0.24 * Math.min( 1, t / 0.006 ) * Math.min( 1, ( 5 - t ) / 0.15 );
+
+			}
+
+			this._bellBuffer = buffer;
+
+		}
+
+		const pan = this._panner( this.above, 8, 1 );
+		pan.positionX.value = x;
+		pan.positionY.value = y;
+		pan.positionZ.value = z;
+		const src = c.createBufferSource(), gain = c.createGain();
+		const semitone = [ 0, 3, 5, 7, 10, 12 ][ clamp( Math.floor( num( note, 0 ) ), 0, 5 ) ];
+		const rate = Math.pow( 2, semitone / 12 );
+		gain.gain.value = clamp( num( strength, 0.65 ), 0, 1 );
+		src.buffer = this._bellBuffer;
+		src.playbackRate.value = rate;
+		src.connect( gain ).connect( pan );
+		const start = Math.max( c.currentTime + 0.005, at );
+		src.start( start );
+		return this._trackVoice( 'bell', src, gain, start + 5 / rate, [ pan ] );
+
+	}
+
 	// continuous reel sounds, every frame: crankRate (crank turns / s: the gear ticking follows it),
 	// dragSpeed (m/s of line a fish takes against the drag), tension (0..1+, the line creaks near 1)
 	rodLoop( crankRate, dragSpeed, tension ) {
@@ -444,6 +524,22 @@ export class SoundScape {
 
 	dispose() {
 
+		this._failed = true;
+		this._loadAbort.abort();
+		this._singers.length = 0;
+		this._silence();
+		for ( const v of this._liveVoices ) {
+
+			v.src.disconnect();
+			v.gain.disconnect();
+			if ( v.extra ) for ( const node of v.extra ) node.disconnect();
+
+		}
+		this._liveVoices.clear();
+		this._voices = {};
+		this._buffers.clear();
+		this._loading.clear();
+		this._bellBuffer = null;
 		if ( ! this.ctx ) return;
 		try {
 
@@ -453,7 +549,21 @@ export class SoundScape {
 		} catch ( e ) { /* ignore */ }
 
 		this.ctx = null;
-		this._failed = true;
+
+	}
+
+	_silence() {
+
+		if ( ! this.ctx ) return;
+		const now = this.ctx.currentTime;
+		for ( const [ name, bed ] of this._beds ) this._releaseBed( name, bed, now );
+		for ( const v of this._liveVoices ) {
+
+			v.gain.gain.setTargetAtTime( 0, now, 0.04 );
+			try { v.src.stop( now + 0.25 ); } catch ( e ) { /* already stopped */ }
+
+		}
+		this._singers.length = 0;
 
 	}
 
@@ -528,6 +638,7 @@ export class SoundScape {
 		this.engineLP = lowpass( 1200, 0.6, this.boatSum );
 		this.pierPan = panner( this.above, 3, 1.3 );
 		this.windLP = lowpass( 1400, 0.5, this.above );
+		this.canopyLP = lowpass( 3200, 0.6, this.above );
 
 		// the rod and reel: held in front of you, a little to the right (the reel hangs lower right)
 		this.rodPan = c.createStereoPanner ? c.createStereoPanner() : null;
@@ -546,7 +657,7 @@ export class SoundScape {
 		this.songPan = panner( this.songLP, 30, 0.5 );
 
 		this._dest = {
-			surf_far: this.surfFar, wind: this.windLP, palms: this.above, crickets: this.above, pier_lap: this.pierPan,
+			surf_far: this.surfFar, wind: this.windLP, forest_wind: this.canopyLP, palms: this.above, crickets: this.above, pier_lap: this.pierPan,
 			under_reef: this.under, birds_dawn: this.above, whale_song: this.songPan,
 			boat_engine: this.engineLP, boat_rush: this.boatSum, boat_lap: this.boatSum,
 			reel_wind: this.rod, reel_drag: this.rod, line_strain: this.rod,
@@ -556,7 +667,7 @@ export class SoundScape {
 
 	_applyVolume() {
 
-		if ( ! this.master ) return;
+		if ( ! this.master || ! this.ctx || this._failed ) return;
 		const v = this._muted ? 0 : this._volume * this._volume;
 		this._ramp( this.master.gain, v, 0.05 );
 
@@ -567,25 +678,27 @@ export class SoundScape {
 	// the buffer if decoded; otherwise starts loading it (once) and returns null
 	_want( name ) {
 
+		if ( this._failed ) return null;
 		const b = this._buffers.get( name );
 		if ( b ) return b;
 		if ( ! this._loading.has( name ) && BANK[ name ] && this.ctx ) {
 
-			const p = fetch( this.baseUrl + BANK[ name ].file )
+			const context = this.ctx;
+			const p = fetch( this.baseUrl + BANK[ name ].file, { signal: this._loadAbort.signal } )
 				.then( ( r ) => {
 
 					if ( ! r.ok ) throw new Error( `audio ${ name }: HTTP ${ r.status }` );
 					return r.arrayBuffer();
 
 				} )
-				.then( ( a ) => this.ctx.decodeAudioData( a ) )
+				.then( ( a ) => ! this._failed && context.state !== 'closed' ? context.decodeAudioData( a ) : null )
 				.then( ( buf ) => {
 
-					this._buffers.set( name, buf );
+					if ( buf && ! this._failed ) this._buffers.set( name, buf );
 					return buf;
 
 				} )
-				.catch( ( e ) => this._warn( e ) );
+				.catch( ( e ) => { if ( ! this._failed && e.name !== 'AbortError' ) this._warn( e ); } );
 			this._loading.set( name, p );
 
 		}
@@ -597,13 +710,13 @@ export class SoundScape {
 	// ------------------------------------------------------------------ beds
 
 	// sets a looping bed's gain (linear) and playback rate; starts it (random offset) when first audible
-	_bed( name, g, now, tau = 0.25, rate = 1 ) {
+	_bed( name, g, now, tau = 0.25, rate = 1, bank = name ) {
 
 		let bed = this._beds.get( name );
 		if ( ! bed ) {
 
 			if ( g < 1e-4 ) return;
-			const buf = this._want( name );
+			const buf = this._want( bank );
 			if ( ! buf ) return;
 			const c = this.ctx;
 			const src = c.createBufferSource();
@@ -616,12 +729,27 @@ export class SoundScape {
 			src.start( now + 0.02, Math.random() * buf.duration );
 			bed = { src, gain: gn, trim: buf.numberOfChannels === 1 ? MONO : 1 };
 			this._beds.set( name, bed );
+			src.onended = () => { src.disconnect(); gn.disconnect(); };
 			if ( this._dest[ name ] !== this.rod ) tau = Math.max( tau, 0.8 ); // fade in on first start (the reel follows the crank at once)
 
 		}
 
 		this._ramp( bed.gain.gain, g * bed.trim, tau );
 		this._ramp( bed.src.playbackRate, rate, 0.15 );
+		if ( g < 1e-4 ) {
+
+			bed.silentSince ??= now;
+			if ( now - bed.silentSince > Math.max( 4, tau * 8 ) ) this._releaseBed( name, bed, now );
+
+		} else bed.silentSince = null;
+
+	}
+
+	_releaseBed( name, bed, now ) {
+
+		bed.gain.gain.setTargetAtTime( 0, now, 0.04 );
+		try { bed.src.stop( now + 0.25 ); } catch ( e ) { /* already stopped */ }
+		this._beds.delete( name );
 
 	}
 
@@ -631,7 +759,7 @@ export class SoundScape {
 	// `at`: context time (default now); `pick`: slice index (default random)
 	_shot( bank, cat, dest, targetLufs, rate = 1, at = 0, pick = - 1 ) {
 
-		if ( ! this.enabled || ! dest ) return null;
+		if ( ! this.enabled || this._muted || this._volume <= 0 || ! dest ) return null;
 		const info = BANK[ bank ];
 		const buf = this._want( bank );
 		if ( ! buf || ! info ) return null;
@@ -649,13 +777,23 @@ export class SoundScape {
 		src.connect( g ).connect( dest );
 		src.start( t, start, dur );
 
+		return this._trackVoice( cat, src, g, t + dur / rate );
+
+	}
+
+	_trackVoice( cat, src, g, end, extra = null ) {
+
+		const c = this.ctx;
 		const list = this._voices[ cat ] || ( this._voices[ cat ] = [] );
-		const v = { src, gain: g, end: t + dur / rate, extra: null };
+		const v = { src, gain: g, end, extra };
 		list.push( v );
+		this._liveVoices.add( v );
 		src.onended = () => {
 
 			const k = list.indexOf( v );
 			if ( k >= 0 ) list.splice( k, 1 );
+			this._liveVoices.delete( v );
+			src.disconnect();
 			g.disconnect();
 			if ( v.extra ) for ( const x of v.extra ) x.disconnect();
 
@@ -680,8 +818,15 @@ export class SoundScape {
 	// a one-shot placed in the world: HRTF panner at (x, y, z) + air absorption with distance
 	_shotAt( bank, cat, x, y, z, targetLufs, rate, at, ref, rolloff = 1, pick = - 1 ) {
 
-		if ( ! this.enabled || ! this._want( bank ) ) return null;
+		if ( ! this.enabled || this._muted || this._volume <= 0 || ! this._want( bank ) ) return null;
 		const c = this.ctx, e = this.env;
+		if ( cat === 'crash' || cat === 'wash' || cat === 'back' ) {
+
+			const aerial = 1 - smooth( 45, 180, e.heightAboveGround );
+			if ( aerial < 0.001 ) return null;
+			targetLufs += 20 * Math.log10( aerial );
+
+		}
 		const d = Math.hypot( x - e.lx, y - e.ly, z - e.lz );
 		const p = this._panner( this.above, ref, rolloff );
 		p.positionX.value = x;
@@ -852,6 +997,9 @@ export class SoundScape {
 	_surf( dt ) {
 
 		const e = this.env;
+		// A world-scale flight used to rebuild nine expensive shoreline transects
+		// every twelve metres, even kilometres inland where none could be heard.
+		if ( e.shoreDist > 240 || e.heightAboveGround >= 180 ) return;
 		const src = this._shoreSrc();
 		if ( ! src || ! src.shore.enabled || src.shore.enabled.value < 0.5 ) {
 
@@ -972,6 +1120,10 @@ export class SoundScape {
 		e.day = clamp( num( s.daylight, 1 ), 0, 1 );
 		e.nearPier = !! s.nearPier;
 		e.hour = typeof s.timeOfDay === 'number' && Number.isFinite( s.timeOfDay ) ? ( ( s.timeOfDay % 24 ) + 24 ) % 24 : null;
+		e.hour = this._hour();
+		e.habitat = typeof s.habitat === 'string' ? s.habitat : 'auto';
+		e.canopy = typeof s.canopy === 'number' && Number.isFinite( s.canopy ) ? clamp( s.canopy, 0, 1 ) : null;
+		e.heightAboveGround = Math.max( 0, num( s.heightAboveGround, 0 ) );
 		const b = s.boat || EMPTY, bp = b.position || EMPTY, eb = e.boat;
 		eb.active = !! b.active;
 		eb.rpm = clamp( num( b.rpm, 0 ), 0, 1 );
@@ -996,9 +1148,9 @@ export class SoundScape {
 		const L = this.ctx.listener, e = this.env;
 		if ( L.positionX ) {
 
-			this._ramp( L.positionX, e.lx, 0.03 );
-			this._ramp( L.positionY, e.ly, 0.03 );
-			this._ramp( L.positionZ, e.lz, 0.03 );
+			this._ramp( L.positionX, e.lx, 0.03, 0.01 );
+			this._ramp( L.positionY, e.ly, 0.03, 0.01 );
+			this._ramp( L.positionZ, e.lz, 0.03, 0.01 );
 			this._ramp( L.forwardX, e.fx, 0.02 );
 			this._ramp( L.forwardY, e.fy, 0.02 );
 			this._ramp( L.forwardZ, e.fz, 0.02 );
@@ -1025,6 +1177,7 @@ export class SoundScape {
 	_mix( now, dt ) {
 
 		const e = this.env, u = e.u, d = e.shoreDist, eb = e.boat;
+		const habitat = habitatMix( e, this._habitat );
 		const deep = clamp( e.depth / 12, 0, 1 );
 
 		// underwater: steep low-pass on everything above the surface, the reef bed faded in
@@ -1045,7 +1198,7 @@ export class SoundScape {
 
 		// distant surf (the waves themselves are events, see _surf)
 		const lvl = 0.6 + 0.7 * e.surf;
-		this._bed( 'surf_far', dB( MIX.surfFar ) * 1.25 / ( 1 + d / 200 ) * lvl / dB( BANK.surf_far.lufs ), now, 0.5 );
+		this._bed( 'surf_far', dB( MIX.surfFar ) * 1.25 / ( 1 + d / 200 ) * lvl * habitat.surf * ( 1 - habitat.shelter * 0.55 ) / dB( BANK.surf_far.lufs ), now, 1.2 );
 
 		// wind in gusts: a random target every 2-8 s (lulls near silent), eased towards
 		const g = this._gust;
@@ -1060,14 +1213,18 @@ export class SoundScape {
 		g.v += ( g.target - g.v ) * ( 1 - Math.exp( - dt / 1.4 ) );
 		const w = Math.hypot( e.wind, eb.active ? eb.speed * 0.9 : 0 );
 		const gw = eb.active && eb.speed > 3 ? Math.max( g.v, 0.5 ) : g.v; // apparent wind on a running boat is steady
-		this._bed( 'wind', dB( MIX.wind ) * clamp( w / 7, 0, 2.5 ) * gw / dB( BANK.wind.lufs ), now, 0.3 );
-		this._ramp( this.windLP.frequency, 400 + ( 80 + 60 * gw ) * w, 0.4 );
+		this._bed( 'wind', dB( MIX.wind ) * clamp( w / 7, 0, 2.5 ) * gw * ( 1 - habitat.shelter ) / dB( BANK.wind.lufs ), now, 0.8 );
+		this._ramp( this.windLP.frequency, ( 400 + ( 80 + 60 * gw ) * w ) * ( 1 - habitat.shelter * 0.45 ), 0.8 );
+		// Same licensed coastal foliage recording, a separate offset and gentler
+		// filtering: the gust above a sheltered path answers the exposed wind.
+		this._bed( 'forest_wind', dB( MIX.canopy ) * habitat.forest * clamp( e.wind / 9, 0, 1.5 ) * ( 0.3 + 0.7 * g.v ) / dB( BANK.wind.lufs ), now, 2.5, 0.96, 'wind' );
+		this._ramp( this.canopyLP.frequency, 2200 + 2400 * g.v, 1.5 );
 
-		// trees inland rustle in the gusts; crickets inland at night (daylight < 0.3)
-		const veg = e.onLand ? smooth( 6, 30, d ) : 0;
-		this._bed( 'palms', dB( MIX.palms ) * veg * clamp( e.wind / 7, 0.2, 1.8 ) * g.v * ( 0.3 + 0.7 * e.day ) / dB( BANK.palms.lufs ), now, 0.5 );
-		const night = smooth( 0.3, 0.12, e.day );
-		this._bed( 'crickets', dB( MIX.crickets ) * night * ( e.onLand ? 0.35 + 0.65 * smooth( 5, 40, d ) : 0.1 ) / dB( BANK.crickets.lufs ), now, 1 );
+		// Insects arrive through dusk, retreat in strong wind, and breathe very
+		// slowly. Forest quiet has space between phrases, not a wall of loops.
+		this._bed( 'palms', dB( MIX.palms ) * habitat.palms * clamp( e.wind / 7, 0.2, 1.8 ) * g.v * ( 0.3 + 0.7 * e.day ) / dB( BANK.palms.lufs ), now, 1.5 );
+		const breathing = 0.93 + 0.07 * Math.sin( now * 0.19 + e.lx * 0.002 + e.lz * 0.001 );
+		this._bed( 'crickets', dB( MIX.crickets ) * habitat.insects * breathing / dB( BANK.crickets.lufs ), now, 2.5 );
 
 		// water lapping the pier piles
 		this._bed( 'pier_lap', ( e.nearPier ? dB( MIX.pierLap ) : 0 ) / dB( BANK.pier_lap.lufs ), now, 0.6 );
@@ -1247,11 +1404,13 @@ export class SoundScape {
 	_birds( now, dt ) {
 
 		const e = this.env, { act, chorus, lull } = this._birdActivity();
+		const habitat = this._habitat;
 		const inland = e.onLand ? smooth( 0, 45, e.shoreDist ) : 0;
-		const hab = e.onLand ? 0.25 + 0.75 * inland : 0.25 * ( 1 - smooth( 20, 90, e.shoreDist ) );
+		const hab = ( e.onLand ? 0.25 + 0.75 * inland : 0.25 * ( 1 - smooth( 20, 90, e.shoreDist ) ) ) * num( habitat.birds, 1 );
 
-		// the dawn chorus: many birds at once, diffuse; inland at full, from the beach distant, gone at sea
-		const cg = chorus * ( e.onLand ? 0.3 + 0.7 * inland : 0.3 * ( 1 - smooth( 20, 150, e.shoreDist ) ) ) * ( 1 - e.u );
+		// Dawn opens fully; a much quieter evening answer uses this same recorded
+		// chorus. Individual singers remain in front, at their own world perches.
+		const cg = ( chorus + 0.22 * num( habitat.dusk, 0 ) ) * ( e.onLand ? 0.3 + 0.7 * inland : 0.3 * ( 1 - smooth( 20, 150, e.shoreDist ) ) ) * num( habitat.birds, 1 );
 		this._bed( 'birds_dawn', dB( MIX.birdChorus ) * cg / dB( BANK.birds_dawn.lufs ), now, 2 );
 
 		this._birdT -= dt;
@@ -1287,7 +1446,7 @@ export class SoundScape {
 			const s = this._singers[ i ];
 			s.t -= dt;
 			if ( s.t > 0 ) continue;
-			if ( s.n <= 0 || e.u > 0.5 || act < 0.01 ) {
+			if ( s.n <= 0 || e.u > 0.5 || act < 0.01 || Math.hypot( s.x - e.lx, s.y - e.ly, s.z - e.lz ) > 130 ) {
 
 				this._singers.splice( i, 1 );
 				continue;
@@ -1316,6 +1475,42 @@ export class SoundScape {
 			s.t = d + 0.8 + Math.random() * 4.5;
 
 		}
+
+	}
+
+	// A few leaves move close to the path while the wider canopy settles. Short
+	// excerpts of the actual wind-in-bushes recording, never invented animal calls.
+	_foliage( now, dt ) {
+
+		this._detailT -= dt;
+		if ( this._detailT > 0 ) return;
+		this._detailT = 12 + Math.random() * 23;
+		if ( this._habitat.forest < 0.35 || this._gust.v < 0.22 || this.env.wind < 1 ) return;
+		const buffer = this._want( 'wind' );
+		if ( ! buffer || buffer.duration < 1 ) return;
+		const e = this.env, c = this.ctx;
+		const angle = Math.random() * Math.PI * 2, distance = 8 + Math.random() * 12;
+		const x = e.lx + Math.cos( angle ) * distance, z = e.lz + Math.sin( angle ) * distance;
+		const pan = this._panner( this.above, 8, 1 );
+		pan.positionX.value = x;
+		pan.positionY.value = e.ly + 1.5;
+		pan.positionZ.value = z;
+		const air = c.createBiquadFilter();
+		air.type = 'bandpass';
+		air.frequency.value = 1800 + Math.random() * 900;
+		air.Q.value = 0.45;
+		air.connect( pan );
+		const src = c.createBufferSource(), gain = c.createGain();
+		src.buffer = buffer;
+		const duration = Math.min( buffer.duration, 2.8 + Math.random() * 1.8 );
+		const start = now + 0.005;
+		const level = dB( MIX.foliage - BANK.wind.lufs ) * this._habitat.forest;
+		gain.gain.setValueAtTime( 0, start );
+		gain.gain.linearRampToValueAtTime( level, start + duration * 0.3 );
+		gain.gain.linearRampToValueAtTime( 0, start + duration );
+		src.connect( gain ).connect( air );
+		src.start( start, Math.random() * Math.max( 0, buffer.duration - duration ), duration );
+		this._trackVoice( 'detail', src, gain, start + duration, [ air, pan ] );
 
 	}
 
@@ -1382,11 +1577,15 @@ export class SoundScape {
 	// ------------------------------------------------------------------ helpers
 
 	// smooth parameter ramp; skips negligible changes to keep the automation timeline short
-	_ramp( param, v, tau ) {
+	_ramp( param, v, tau, absoluteEpsilon = null ) {
 
 		if ( ! Number.isFinite( v ) ) return;
 		const last = param._t;
-		if ( last !== undefined && Math.abs( v - last ) <= Math.abs( last ) * 0.004 + 1e-6 ) return;
+		// Gain/filter changes use a relative tolerance, but positions use metres.
+		// A percentage of statewide coordinates could otherwise leave the actual
+		// audio listener kilometres behind the camera after an ordinary walk.
+		const epsilon = absoluteEpsilon ?? ( Math.abs( last ) * 0.004 + 1e-6 );
+		if ( last !== undefined && Math.abs( v - last ) <= epsilon ) return;
 		param._t = v;
 		param.setTargetAtTime( v, this.ctx.currentTime, tau );
 
@@ -1396,9 +1595,9 @@ export class SoundScape {
 
 		if ( p.positionX ) {
 
-			this._ramp( p.positionX, x, 0.05 );
-			this._ramp( p.positionY, y, 0.05 );
-			this._ramp( p.positionZ, z, 0.05 );
+			this._ramp( p.positionX, x, 0.05, 0.01 );
+			this._ramp( p.positionY, y, 0.05, 0.01 );
+			this._ramp( p.positionZ, z, 0.05, 0.01 );
 
 		} else p.setPosition( x, y, z );
 

@@ -73,7 +73,52 @@ export class VegInstances {
 
 	_key( i, j ) {
 
-		return ( i + 4096 ) * 8192 + ( j + 4096 );
+		// Signed Cantor pairing: the old 8192-wide key aliased cells 262 km
+		// apart after the world grew to real California metres.
+		const a = i >= 0 ? 2 * i : -2 * i - 1;
+		const b = j >= 0 ? 2 * j : -2 * j - 1;
+		return ( a + b ) * ( a + b + 1 ) / 2 + b;
+
+	}
+
+	// Build only for streamed far levels. The coarse grid keeps a 12 km query
+	// to hundreds of cells; reusing the 32 m near grid would require 560k lookups.
+	buildFarIndex( cellSize = 1024 ) {
+
+		this.farCellSize = cellSize;
+		const cells = new Map();
+		for ( let i = 0; i < this.count; i ++ ) {
+
+			const key = this._key( Math.floor( this.px[ i ] / cellSize ), Math.floor( this.pz[ i ] / cellSize ) );
+			let list = cells.get( key );
+			if ( ! list ) cells.set( key, list = [] );
+			list.push( i );
+
+		}
+		this.farCells = new Map();
+		for ( const [ key, list ] of cells ) this.farCells.set( key, Int32Array.from( list ) );
+
+	}
+
+	queryFar( x, z, radius, out ) {
+
+		const cs = this.farCellSize, r2 = radius * radius;
+		const i0 = Math.floor( ( x - radius ) / cs ), i1 = Math.floor( ( x + radius ) / cs );
+		const j0 = Math.floor( ( z - radius ) / cs ), j1 = Math.floor( ( z + radius ) / cs );
+		let count = 0;
+		for ( let j = j0; j <= j1; j ++ ) for ( let i = i0; i <= i1; i ++ ) {
+
+			const list = this.farCells.get( this._key( i, j ) );
+			if ( ! list ) continue;
+			for ( let k = 0; k < list.length; k ++ ) {
+
+				const id = list[ k ], dx = this.px[ id ] - x, dz = this.pz[ id ] - z;
+				if ( dx * dx + dz * dz <= r2 && count < out.length ) out[ count ++ ] = id;
+
+			}
+
+		}
+		return count;
 
 	}
 
@@ -210,16 +255,23 @@ export class VegType {
 
 	// sortFar: keep the far level roughly front to back (distance buckets, re-sorted after the
 	// camera moved farRefresh metres; alpha-tested impostors then get rejected by the early depth
-	// test behind nearer ones). Implies a far material that ignores the instance matrices.
-	constructor( name, records, { near = null, far = null, nearRange = 100, fade = null, margin = 14, refreshDistance = 6, farExcludeNear = false, sortNear = false, sortFar = false, farRefresh = 16 } = {} ) {
+	// test behind nearer ones). Far materials normally ignore instance matrices;
+	// set far.matrices for ordinary instanced geometry such as distant palms.
+	constructor( name, records, { near = null, far = null, nearRange = 100, fade = null, margin = 14, refreshDistance = 6, farExcludeNear = false, sortNear = false, sortFar = false, farRefresh = 16, streamFar = false } = {} ) {
 
 		this.name = name;
 		this.sortNear = sortNear;
 		this.sortFar = sortFar && !! far && ! farExcludeNear;
 		this.farRefresh = farRefresh;
+		this.farMatrices = !! far?.matrices;
+		this.streamFar = streamFar && this.sortFar;
+		// Padding covers movement until the next refresh; the shader still owns
+		// the precise fade so a cell entering/leaving the buffer never pops.
+		this.farRadius = far ? far.fade[ 1 ] + farRefresh * 2 : 0;
 		this.farX = Infinity;
 		this.farZ = Infinity;
 		this.inst = new VegInstances( records );
+		if ( this.streamFar ) this.inst.buildFarIndex();
 		this.nearRange = nearRange;
 		this.margin = margin;
 		this.refreshDistance = refreshDistance;
@@ -246,12 +298,13 @@ export class VegType {
 		if ( far ) {
 
 			this.far = new LodLevel( far.parts, this.inst.count, new THREE.Vector3( nearRange, far.fade[ 0 ], far.fade[ 1 ] ) );
-			this.far.fill( this.inst );
+			if ( ! this.streamFar ) this.far.fill( this.inst );
 			this.levels.push( this.far );
 			if ( this.sortFar ) {
 
 				this.far.setDynamic();
 				this.farIds = new Int32Array( Math.max( 1, this.inst.count ) );
+				if ( this.streamFar ) this.farCandidates = new Int32Array( Math.max( 1, this.inst.count ) );
 
 			}
 			// optionally keep instances that are certainly near out of the far buffer
@@ -293,22 +346,24 @@ export class VegType {
 
 		this.farX = camPos.x;
 		this.farZ = camPos.z;
-		const { px, pz, count } = this.inst;
-		const B = 6, NB = 1024;
-		const bucket = this._bucket || ( this._bucket = new Uint16Array( count ) );
+		const { px, pz } = this.inst;
+		const count = this.streamFar ? this.inst.queryFar( camPos.x, camPos.z, this.farRadius, this.farCandidates ) : this.inst.count;
+		const NB = 1024, B = Math.max( 6, this.farRadius / ( NB - 1 ) );
+		const bucket = this._bucket || ( this._bucket = new Uint16Array( Math.max( 1, this.inst.count ) ) );
 		const start = this._bstart || ( this._bstart = new Int32Array( NB + 1 ) );
 		start.fill( 0 );
 		for ( let i = 0; i < count; i ++ ) {
 
-			const b = Math.min( NB - 1, Math.floor( Math.hypot( px[ i ] - camPos.x, pz[ i ] - camPos.z ) / B ) );
+			const id = this.streamFar ? this.farCandidates[ i ] : i;
+			const b = Math.min( NB - 1, Math.floor( Math.hypot( px[ id ] - camPos.x, pz[ id ] - camPos.z ) / B ) );
 			bucket[ i ] = b;
 			start[ b + 1 ] ++;
 
 		}
 
 		for ( let b = 0; b < NB; b ++ ) start[ b + 1 ] += start[ b ];
-		for ( let i = 0; i < count; i ++ ) this.farIds[ start[ bucket[ i ] ] ++ ] = i;
-		this.far.fill( this.inst, this.farIds, count, false );
+		for ( let i = 0; i < count; i ++ ) this.farIds[ start[ bucket[ i ] ] ++ ] = this.streamFar ? this.farCandidates[ i ] : i;
+		this.far.fill( this.inst, this.farIds, count, this.farMatrices );
 
 	}
 

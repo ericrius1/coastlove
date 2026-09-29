@@ -1,0 +1,23 @@
+name: Native Rust checks
+on:
+  push:
+    paths: ['native/**', '.github/workflows/native.yml']
+  pull_request:
+    paths: ['native/**', '.github/workflows/native.yml']
+jobs:
+  native:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - run: cargo fmt --manifest-path native/Cargo.toml --check
+      - run: cargo test --locked --manifest-path native/Cargo.toml
+      - run: cargo clippy --locked --manifest-path native/Cargo.toml -- -D warnings

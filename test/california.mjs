@@ -8,6 +8,7 @@ import {GEO,project,unproject,INLAND} from '../src/california/Geography.js';
 import {REGION,PLACES} from '../src/california/Region.js';
 import {coastFieldAt} from '../src/california/CoastField.js';
 import {IslandLife} from '../src/exploration/IslandLife.js';
+import {WILDLIFE_SPECIES,WILDLIFE_POPULATION_LIMIT} from '../src/exploration/Wildlife.js';
 import {safeAt,findSafeSpot} from '../src/exploration/Navigation.js';
 import {VegSite,scatterVegetation,buildGrassMask} from '../src/world/vegetation/Scatter.js';
 import {wrapHour,wheelHours,clockLabel} from '../src/california/TimeScrub.js';
@@ -33,15 +34,16 @@ for(const [lon,lat]of[[-117.12,32.54],[-124.2,41.995],[-122.48,37.82]]){
 assert.ok(t.streets.routes.length>20000,'real city road graph');
 console.log('ok southern/northern borders, all eight Channel Islands, 10 real-mile band, 30 town districts');
 const scene=new Scene(),life=new IslandLife(scene,t,null,{california:true});
-assert.equal(life.residents.length,9);assert.equal(life.animals.length,32);
+assert.equal(life.residents.length,9);assert.ok(life.animals.length>32&&life.animals.length<=WILDLIFE_POPULATION_LIMIT);
 assert.equal(life.animals.filter(a=>a.kind==='fox').length,20);assert.equal(life.animals.filter(a=>a.kind==='seaLion').length,12);
 for(const r of life.residents)assert.ok(safeAt(t,null,r.position.x,r.position.z),r.name);
-for(const kind of ['fox','seaLion']){
+for(const {kind} of WILDLIFE_SPECIES){
+ assert.ok(life.animals.some(a=>a.kind===kind),`${kind} is present on real terrain`);
  const animal=life.animals.find(a=>a.kind===kind),player={mode:'walk',position:animal.home.clone().add(new Vector3(10,0,10))};
  for(let i=0;i<600;i++)life.update(1/60,player);
  for(const a of life.animals)assert.ok(safeAt(t,null,a.group.position.x,a.group.position.z),`${a.kind} stays on walkable land`);
 }
-console.log('ok all statewide destinations, nine residents, 20 foxes and 12 sea lions remain on safe ground');
+console.log(`ok all statewide destinations, nine residents, ${life.animals.length} creatures across six species remain on safe ground`);
 await GPU.init({headless:true});
 const site=new VegSite(t),records=scatterVegetation(site),grass=buildGrassMask(site);
 assert.ok(records.trees.length<=6500&&records.trees.length>300);assert.ok(records.shrubs.length<=14000&&records.shrubs.length>1000);

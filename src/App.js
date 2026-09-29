@@ -8,6 +8,7 @@ import {loadElevation} from './california/Elevation.js';
 import { LocalShore } from './california/LocalShore.js';
 import { CoastalTowns } from './california/CoastalTowns.js';
 import { COAST_VIEW } from './california/ViewQuality.js';
+import { habitatAt } from './california/Habitat.js';
 import { Exploration } from './exploration/Exploration.js';
 import { Vector3, Euler, Color, MathUtils, Mesh } from './engine/index.js';
 import { GPU } from './engine/gpu/GPU.js';
@@ -766,7 +767,18 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		f.up.set( 0, 1, 0 ).applyQuaternion( cam.quaternion );
 		const h = this.cameraWaterHeight ?? 0;
 		const coast = this.terrainData.coastDistance( p.x, p.z ).d;
+		this._habitatTime = (this._habitatTime || 0) - dt;
+		const habitatMoved = !this._habitatPosition || Math.hypot(p.x - this._habitatPosition.x, p.z - this._habitatPosition.z) > 80;
+		if (this._habitatTime <= 0 || habitatMoved) {
+			this._audioHabitat = habitatAt(p.x, p.z, coast, this.vegetation?.sampleCanopy?.(p.x, p.z) || 0, this._audioHabitat);
+			this._habitatPosition ||= {x: 0, z: 0};
+			this._habitatPosition.x = p.x; this._habitatPosition.z = p.z; this._habitatTime = .75;
+		}
 		this.audio.update( dt, {
+			timeOfDay: this.settings.timeOfDay,
+			habitat: this._audioHabitat.habitat,
+			canopy: this._audioHabitat.canopy,
+			heightAboveGround: Math.max(0, p.y - this.terrainData.heightAt(p.x, p.z)),
 			listener: { position: p, forward: f.fwd, up: f.up },
 			underwater: p.y < h ? 1 : 0,
 			depthBelowSurface: Math.max( 0, h - p.y ),

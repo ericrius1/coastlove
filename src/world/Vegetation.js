@@ -120,7 +120,7 @@ export class Vegetation {
 		// geometry
 		const palmNear = buildPalmNear();
 		const palmFar = buildPalmFar();
-		const under = buildUnderstory();
+		const under = buildUnderstory( { youngPalms: recs.youngPalms.length > 0 } );
 		const broad = buildBroadleaf();
 		const monsteraMesh = buildMonsteraMesh();
 		const bananaMesh = buildBananas();
@@ -155,9 +155,9 @@ export class Vegetation {
 		};
 
 		this.palms = add( new VegType( 'palms', recs.palms, {
-			nearRange: PALM_NEAR, margin: 10, refreshDistance: 6, farExcludeNear: true, sortNear: true,
+			nearRange: PALM_NEAR, margin: 10, refreshDistance: 6, sortNear: true, sortFar: true, streamFar: true, farRefresh: 128,
 			near: [ { geometry: palmNear.geometry, material: leafMat, castShadow: true, name: 'veg-palm' } ],
-			far: { parts: [ { geometry: palmFar.geometry, material: leafMat, name: 'veg-palm-far' } ], fade: CANOPY_FAR },
+			far: { parts: [ { geometry: palmFar.geometry, material: leafMat, name: 'veg-palm-far' } ], fade: CANOPY_FAR, matrices: true },
 		} ) );
 
 		// understory: young palms and ferns in one mesh; the plant kind rides on the seed
@@ -199,7 +199,7 @@ export class Vegetation {
 			...recs.shrubs.map( ( r ) => ( { ...r, qr: SHRUB_NEAR + 10 } ) ),
 		];
 		this.canopy = add( new VegType( 'canopy', canopyRecs, {
-			nearRange: TREE_NEAR, margin: 10, sortNear: true, sortFar: true, farRefresh: 16,
+			nearRange: TREE_NEAR, margin: 10, sortNear: true, sortFar: true, streamFar: true, farRefresh: 128,
 			near: [ { geometry: canopy.geometry, material: canopyMat, castShadow: true, name: 'veg-canopy' } ],
 			far: { parts: [ { geometry: buildImpostorQuad(), material: impostorMat, name: 'veg-canopy-far' } ], fade: CANOPY_FAR },
 		} ) );
@@ -276,6 +276,35 @@ export class Vegetation {
 		if ( b ) b.update( p, true );
 
 		this.grass.update( camera );
+
+	}
+
+	// Local woodland cover for habitat sound and wildlife. Reuses the canopy
+	// grid: no statewide scan, scratch array, or per-call allocation.
+	sampleCanopy( x, z ) {
+
+		const inst = this.canopy.inst, radius = 34, radius2 = radius * radius;
+		const cs = inst.cellSize;
+		const i0 = Math.floor( ( x - radius ) / cs ), i1 = Math.floor( ( x + radius ) / cs );
+		const j0 = Math.floor( ( z - radius ) / cs ), j1 = Math.floor( ( z + radius ) / cs );
+		let cover = 0;
+		for ( let j = j0; j <= j1; j ++ ) for ( let i = i0; i <= i1; i ++ ) {
+
+			const ids = inst.cells.get( inst._key( i, j ) );
+			if ( ! ids ) continue;
+			for ( let k = 0; k < ids.length; k ++ ) {
+
+				const id = ids[ k ];
+				if ( inst.iDat[ id * 4 + 1 ] <= 0 ) continue; // shrubs provide no canopy
+				const dx = inst.px[ id ] - x, dz = inst.pz[ id ] - z;
+				const weight = Math.max( 0, 1 - ( dx * dx + dz * dz ) / radius2 );
+				cover += weight * weight * .23;
+				if ( cover >= 1 ) return 1;
+
+			}
+
+		}
+		return cover;
 
 	}
 

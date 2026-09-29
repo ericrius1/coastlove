@@ -182,6 +182,16 @@ export class CoastalTowns {
   }
   return top;
  }
+ // Static footprints remain available even when the nearby collider pool is
+ // showing another town. Used to seed distant wildlife without entering houses.
+ containsBuilding(x,z,padding=.6){
+  for(const {town,boxes}of this.groups){
+   const reach=town.radius+30+padding;
+   if(Math.abs(x-town.x)>reach||Math.abs(z-town.z)>reach)continue;
+   for(const b of boxes)if(Math.abs(x-b.x)<b.half.x+padding&&Math.abs(z-b.z)<b.half.z+padding)return true;
+  }
+  return false;
+ }
  syncColliders(position){
   const nearby=this.groups.filter(({town})=>Math.hypot(town.x-position.x,town.z-position.z)<town.radius+160),key=nearby.map(({town})=>town.id).join('|');if(key===this.collisionKey)return;this.collisionKey=key;
   const boxes=nearby.flatMap(g=>g.boxes).sort((a,b)=>Math.hypot(a.x-position.x,a.z-position.z)-Math.hypot(b.x-position.x,b.z-position.z));

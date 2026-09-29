@@ -13,7 +13,10 @@ export class Landmarks {
   this.material=createPropMaterial('coastlovePlaces');
   this.rockMaterial=createPropMaterial('coastloveSandstone');
   this.rockMaterial.surface += '\ns.albedo *= 0.75 + gpFbm(in.P * 0.55) * 0.5; s.normal = gpBump(in.P,s.normal,gpFbm(in.P*1.2)*0.16);\n';
-  this.glow=standard({color:0x80c7b9,emissive:0x46e5d2,emissiveIntensity:0,roughness:.3});
+  this.glow=standard({color:0x80c7b9,emissive:0x46e5d2,emissiveIntensity:0,roughness:.3,
+   varyings:{bloomPhase:'f32'},
+   vertex:'o.bloomPhase = f32(v.instance) * 2.39996; v.worldOffset.y = sin(frame.time * 0.6 + o.bloomPhase) * 0.04; v.prevWorldOffset.y = sin((frame.time - frame.dt) * 0.6 + o.bloomPhase) * 0.04;',
+   surface:'let bloom = 0.5 + 0.5 * sin(frame.time * 0.8 + in.vs.bloomPhase); s.emissive *= 0.12 + 0.88 * bloom * bloom;'});
   this.lamp=standard({color:0xffe3a3,emissive:0xffd38c,emissiveIntensity:0});
   this.beamMaterial=standard({color:0x000000,emissive:0xffe6b0,emissiveIntensity:.7,lit:false,transparent:true,blending:'additive',opacity:.04,depthWrite:false,velocityWeight:0,
    // GeoKit cylinder UVs are measured in metres. Feather both the distant
@@ -121,10 +124,7 @@ export class Landmarks {
   if(this.biolum)this.biolum.visible=night;
  }
  ringBell(){
-  const audio=this.app.audio;if(!audio||audio.muted||!audio.ctx)return;
-  const ctx=audio.ctx,now=ctx.currentTime;
-  for(const [freq,level]of[[260,.13],[703,.05],[1340,.025]]){
-   const oscillator=ctx.createOscillator(),gain=ctx.createGain();oscillator.type='sine';oscillator.frequency.value=freq;gain.gain.setValueAtTime(level,now);gain.gain.exponentialRampToValueAtTime(.0001,now+4.5);oscillator.connect(gain);gain.connect(audio.master||ctx.destination);oscillator.start(now);oscillator.stop(now+4.6);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
-  }
+  const site=this.groups.find(({place})=>place.kind==='wreck');
+  if(site)this.app.audio?.bell?.({x:site.group.position.x,y:site.group.position.y+2,z:site.group.position.z+7});
  }
 }

@@ -1,0 +1,10 @@
+/target/
+/target-*/
+/captures/
+/assets/*.bin
+/assets/world.json
+/assets/audio.json
+/assets/audio/
+/dist/
+
+/assets/rendering/

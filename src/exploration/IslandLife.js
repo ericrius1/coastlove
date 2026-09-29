@@ -7,7 +7,10 @@ import { findSafeSpot, safeAt } from './Navigation.js';
 
 import { CALIFORNIA_STORIES, PLACES } from '../california/Region.js';
 import { STORIES } from './Stories.js';
+import { WILDLIFE_HABITATS, WILDLIFE_BEHAVIOR } from './Wildlife.js';
+import { createWoodlandAssets, makeWoodlandAnimal } from './WoodlandModels.js';
 export { STORIES } from './Stories.js';
+export { WILDLIFE_SPECIES, WILDLIFE_BY_KIND } from './Wildlife.js';
 
 function animalGeometry( kind ) {
 	const p = [];
@@ -54,9 +57,10 @@ function animalGeometry( kind ) {
 }
 
 export class IslandLife {
-	constructor( scene, terrain, colliders, { loadCharacters = false, california = false } = {} ) {
+	constructor( scene, terrain, colliders, { loadCharacters = false, california = false, placementClear = null } = {} ) {
 		this.terrain = terrain;
 		this.colliders = colliders;
+		this.placementClear = placementClear;
 		this.random = mulberry32( 8304 );
 		this.time = 0;
 		this.residents = (california ? CALIFORNIA_STORIES : STORIES).map( ( story ) => {
@@ -88,30 +92,49 @@ export class IslandLife {
 			goat: prepare( cylinder( 0.065, 0.045, 0.58, 8 ), { color: 0x695b49, rough: 0.95 } ),
 			tortoise: prepare( sphere( 1, 8, 6 ).scale( 0.12, 0.12, 0.24 ), { color: 0x8b8861, rough: 0.95 } )
 		};
+		const woodland = Object.fromEntries( [ 'deer', 'rabbit', 'quail', 'butterfly' ].map( kind => [ kind, createWoodlandAssets( kind ) ] ) );
+		const habitats = california ? WILDLIFE_HABITATS : Array.from( { length: 32 }, ( _, i ) => ( { kind: i % 2 ? 'goat' : 'tortoise', count: 1, spread: 24, home: this.residents[ i % 4 ].home } ) );
 		this.animals = [];
-		for ( let i = 0; i < 32; i ++ ) {
-			const kind = california ? (i<20?'fox':'seaLion') : i % 2 ? 'goat' : 'tortoise';
-			const home = california ? PLACES.find(p=>p.id===(kind==='fox'?'foxes':'rookery')) : this.residents[ i % 4 ].home;
-			const a = this.random() * Math.PI * 2, r = 8 + this.random() * 18;
-			const position = findSafeSpot( terrain, colliders, home.x + Math.sin( a ) * r, home.z + Math.cos( a ) * r, false, 100 );
-			if ( ! position ) continue;
-			const group = new Group();
-			const body = new Mesh( geometries[ kind ], material );
-			body.castShadow = true;
-			group.add( body );
-			const legs = [];
-			for ( const x of [ - 1, 1 ] ) for ( const z of [ - 1, 1 ] ) {
-				const leg = new Mesh( legGeometries[ kind ], material );
-				leg.position.set( x * ( kind === 'fox' ? .14 : kind === 'goat' ? 0.21 : .44 ), kind === 'fox' ? .19 : kind === 'goat' ? 0.33 : 0.13, z * (kind==='fox'?.27:.36) );
-				group.add( leg ); legs.push( leg );
+		for ( const habitat of habitats ) {
+			const { kind } = habitat, home = habitat.home || PLACES.find( place => place.id === habitat.place );
+			if ( ! home ) continue;
+			for ( let i = 0; i < habitat.count; i ++ ) {
+				const a = this.random() * Math.PI * 2, r = 5 + this.random() * habitat.spread;
+				// Town centers contain benches, roads and buildings; the small garden
+				// encounters belong beside the paths, never in the traffic lane.
+				const gardenOffset = home.kind === 'town' ? 45 : habitat.place === 'harbor' ? 18 : 0;
+				const accept = ( x, z ) => {
+					if ( placementClear && ! placementClear( x, z ) ) return false;
+					const road = terrain.streets?.surfaceAt?.( x, z );
+					return ! road || road.distance > road.width / 2 + 2;
+				};
+				const position = findSafeSpot( terrain, colliders, home.x + gardenOffset + Math.sin( a ) * r, home.z + gardenOffset + Math.cos( a ) * r, false, 100, accept );
+				if ( ! position ) continue;
+				let model;
+				if ( woodland[ kind ] ) model = makeWoodlandAnimal( woodland[ kind ], material );
+				else {
+					const group = new Group(), body = new Mesh( geometries[ kind ], material ), legs = [];
+					body.castShadow = true; group.add( body );
+					for ( const x of [ - 1, 1 ] ) for ( const z of [ - 1, 1 ] ) {
+						const leg = new Mesh( legGeometries[ kind ], material );
+						leg.position.set( x * ( kind === 'fox' ? .14 : kind === 'goat' ? 0.21 : .44 ), kind === 'fox' ? .19 : kind === 'goat' ? 0.33 : 0.13, z * (kind==='fox'?.27:.36) );
+						group.add( leg ); legs.push( leg );
+					}
+					model = { group, body, legs, head: null, wings: [] };
+				}
+				model.group.position.copy( position );
+				model.group.rotation.y = a;
+				// Small natural variation keeps a covey or family from looking stamped.
+				model.group.scale.setScalar( 0.88 + this.random() * 0.2 );
+				scene.add( model.group );
+				this.animals.push( { kind, ...model, habitat: habitat.place, home: position.clone(), heading: a, timer: 1 + this.random() * 5, phase: this.random() * 6.28, walking: false, state: 'forage', fright: 0, elapsed: 0, groundY: position.y } );
 			}
-			group.position.copy( position );
-			scene.add( group );
-			this.animals.push( { kind, group, legs, home: position.clone(), heading: a, timer: this.random() * 5, phase: i, walking: true } );
 		}
 	}
 
 	update( dt, player, talkingId = null ) {
+		// A resumed background tab must not launch wildlife through a hillside.
+		dt = Math.max( 0, Math.min( Number.isFinite( dt ) ? dt : 0, 0.1 ) );
 		this.time += dt;
 		for ( const r of this.residents ) {
 			const distance = r.position.distanceTo(player.position);
@@ -128,27 +151,72 @@ export class IslandLife {
 			r.vendor.talking = talkingId === r.id;
 			r.vendor.update( dt, player.position );
 		}
-		for ( const animal of this.animals ) {
-			const p = animal.group.position, distance = p.distanceTo( player.position );
-			animal.group.visible = distance < 450;
-			if ( distance > 450 ) continue;
-			animal.timer -= dt;
-			const flee = player.mode === 'walk' && distance < 3;
-			if ( flee ) { animal.heading = Math.atan2( p.x - player.position.x, p.z - player.position.z ); animal.walking = true; }
-			else if ( animal.timer <= 0 ) {
-				animal.timer = 2 + this.random() * 5;
-				animal.walking = this.random() > 0.3;
-				animal.heading += ( this.random() - 0.5 ) * 2;
-				if ( p.distanceTo( animal.home ) > 14 ) animal.heading = Math.atan2( animal.home.x - p.x, animal.home.z - p.z );
-			}
-			if ( ! animal.walking ) continue;
-			const speed = ( animal.kind === 'goat' || animal.kind === 'fox' ? 0.8 : 0.22 ) * ( flee ? 2.5 : 1 );
-			const x = p.x + Math.sin( animal.heading ) * speed * dt, z = p.z + Math.cos( animal.heading ) * speed * dt;
-			if ( safeAt( this.terrain, this.colliders, x, z ) ) p.set( x, this.terrain.heightAt( x, z ), z );
-			else { animal.heading += 1.7; animal.timer = 0.5; }
-			animal.group.rotation.y = animal.heading;
-			animal.phase += dt * speed * 8;
-			animal.legs.forEach( ( leg, i ) => { leg.rotation.x = Math.sin( animal.phase + ( i === 0 || i === 3 ? 0 : Math.PI ) ) * 0.35; } );
+		for ( const animal of this.animals ) this.updateAnimal( animal, dt, player );
+	}
+
+	updateAnimal( animal, dt, player ) {
+		const p = animal.group.position, behavior = WILDLIFE_BEHAVIOR[ animal.kind ];
+		const dx = p.x - player.position.x, dy = p.y - player.position.y, dz = p.z - player.position.z;
+		const distanceSq = dx * dx + dy * dy + dz * dz;
+		animal.group.visible = distanceSq < behavior.range * behavior.range;
+		if ( ! animal.group.visible ) { animal.elapsed = 0; return; }
+		animal.elapsed += dt;
+		// Tiny footsteps do not need 60 terrain/collision queries a second from
+		// across a valley. Nearby animation keeps full frame cadence.
+		if ( distanceSq > 55 * 55 && animal.elapsed < 0.12 ) return;
+		const step = Math.min( animal.elapsed, 0.2 ); animal.elapsed = 0;
+		animal.timer -= step;
+		animal.fright = Math.max( 0, animal.fright - step );
+		const flying = animal.kind === 'butterfly';
+		if ( player.mode === 'walk' && distanceSq < behavior.comfort * behavior.comfort ) {
+			animal.heading = Math.atan2( dx, dz );
+			animal.fright = 1.3;
 		}
+		if ( animal.fright > 0 ) {
+			animal.state = 'flee'; animal.timer = 0;
+		} else if ( animal.timer <= 0 ) {
+			animal.timer = 2 + this.random() * 5;
+			const choice = this.random();
+			animal.state = choice < 0.3 ? 'rest' : choice < 0.6 ? 'forage' : 'wander';
+			animal.heading += ( this.random() - 0.5 ) * 2.1;
+		}
+		const homeDx = animal.home.x - p.x, homeDz = animal.home.z - p.z;
+		if ( animal.state !== 'flee' && homeDx * homeDx + homeDz * homeDz > behavior.roam * behavior.roam ) {
+			animal.heading = Math.atan2( homeDx, homeDz ); animal.state = 'wander';
+		}
+		const alert = ! flying && animal.state !== 'flee' && player.mode === 'walk' && distanceSq < behavior.comfort * behavior.comfort * 3;
+		animal.walking = ! alert && ( animal.state === 'wander' || animal.state === 'flee' || flying && animal.state === 'forage' );
+		const speed = animal.walking ? animal.state === 'flee' ? behavior.fleeSpeed : behavior.speed : 0;
+		if ( speed > 0 ) {
+			if ( flying && animal.state !== 'flee' ) animal.heading += Math.sin( this.time * 1.4 + animal.phase ) * step * 0.8;
+			const x = p.x + Math.sin( animal.heading ) * speed * step, z = p.z + Math.cos( animal.heading ) * speed * step;
+			const road = this.terrain.streets?.surfaceAt?.( x, z );
+			if ( ( ! this.placementClear || this.placementClear( x, z ) ) && ( ! road || road.distance > road.width / 2 + 1 ) && safeAt( this.terrain, this.colliders, x, z ) ) {
+				p.x = x; p.z = z; animal.groundY = this.terrain.heightAt( x, z );
+			} else { animal.heading += 1.7; animal.timer = 0.6; }
+		}
+		const turn = Math.atan2( Math.sin( animal.heading - animal.group.rotation.y ), Math.cos( animal.heading - animal.group.rotation.y ) );
+		animal.group.rotation.y += turn * Math.min( 1, step * ( animal.state === 'flee' ? 12 : 3 ) );
+		animal.phase += step * ( speed * 8 + 0.7 );
+		for ( let i = 0; i < animal.legs.length; i ++ ) {
+			const leg = animal.legs[ i ], offset = i === 0 || i === 3 ? 0 : Math.PI;
+			const target = animal.walking ? Math.sin( animal.phase + offset ) * behavior.legSwing : 0;
+			leg.rotation.x += ( target - leg.rotation.x ) * Math.min( 1, step * 14 );
+		}
+		animal.body.position.y = Math.sin( this.time * 1.8 + animal.phase ) * 0.007;
+		if ( animal.head ) {
+			const grazing = ! animal.walking && ! alert && animal.state === 'forage';
+			const headTilt = grazing ? ( animal.kind === 'deer' ? 1.3 : 0.45 ) + Math.sin( this.time * 3 + animal.phase ) * 0.12 : 0;
+			animal.head.rotation.x += ( headTilt - animal.head.rotation.x ) * Math.min( 1, step * 4 );
+			const lookAngle = Math.atan2( - dx, - dz ) - animal.group.rotation.y;
+			animal.head.rotation.y = alert ? Math.max( - 0.6, Math.min( 0.6, Math.atan2( Math.sin( lookAngle ), Math.cos( lookAngle ) ) ) ) : Math.sin( this.time * 0.6 + animal.phase ) * 0.12;
+		}
+		if ( animal.kind === 'rabbit' && animal.walking ) {
+			p.y = animal.groundY + Math.max( 0, Math.sin( animal.phase * 1.5 ) ) * ( animal.state === 'flee' ? 0.14 : 0.065 );
+		} else if ( flying ) {
+			const hover = animal.walking ? 0.8 + Math.sin( this.time * 2 + animal.phase ) * 0.3 : 0.18;
+			p.y += ( animal.groundY + hover - p.y ) * Math.min( 1, step * 3 );
+			animal.wings.forEach( ( wing, i ) => { wing.rotation.z = ( i ? - 1 : 1 ) * ( 0.3 + Math.sin( this.time * ( animal.walking ? 24 : 5 ) + animal.phase ) * 0.9 ); } );
+		} else p.y = animal.groundY;
 	}
 }

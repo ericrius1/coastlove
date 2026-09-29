@@ -71,3 +71,18 @@ for (const [site,id,name,role,color,pages] of [
 ]) { const p=SETTLEMENTS.find(p=>p.id===site); CALIFORNIA_STORIES.push({id,name,role,color,x:p.x,z:p.z,pages,site,procedural:true}); }
 
 for(const story of CALIFORNIA_STORIES)if(!story.site&&story.id!=='ines')Object.assign(story,legacyPoint(story.x,story.z));
+
+// These are memories, not quest requirements: the letter trail can be followed
+// freely, and listening to a resident never locks another discovery away.
+const keepsakes = {
+ ines: 'There is one delivery I still think about. My mother brought Rowan an envelope with a seed inside, addressed to “the person who stays.” He keeps it in a brass box beside his bench at Cypress Point. If you sit with a place long enough, it usually gives you something to carry.',
+ rowan: 'The envelope beside the bench is yours to read. A girl used to come here with her father, the lantern keeper. She drew stars on everything. Once I asked what she would be when she grew up. “Far away,” she said. Her father laughed, but I saw him reach for her hand.',
+ sana: 'The fox I told you about has a new trick: she pretends not to see me until I put my pencil down. Sometimes the best fieldwork is five minutes of doing nothing. Try that in the grotto after eight tonight. The blue lights are small enough to miss when you are busy getting somewhere.',
+ elias: 'My daughter left pages along the coast. I used to wish she had left an address instead. But I have visited nearly all of them now. There is a pressed flower in the lantern log; come between six and half past eight in the evening and I will leave it out. That is the hour she liked best.',
+ marisol: 'I keep the drawings people leave behind. A woman once drew a lighthouse on the back of her ticket and asked me to mail it north. No name. Just “for the forest listener.” I worried it would never arrive. A month later, Fern sent back a leaf pressed as flat as a little hand.',
+ jules: 'One summer we projected our film onto a white sail. The wind kept changing the shape of the story. People who had never spoken before held the ropes together for two hours. I do not remember the film. I remember all those hands.',
+ mei: 'There is a bench here my grandfather never got to sit on. For years that made me sad. Then a stranger fell asleep on it one afternoon, with a book open on his chest, and I thought: yes. That is what it was for. Some things can finish becoming useful after we leave.',
+ noah: 'Last winter someone tied six little paper stars to my ladder. They had gone soft in the fog. On one was written, “Thank you for looking after the things that help people cross.” I took that one home. The others I left for the next painter.',
+ fern: 'There is a sapling inside the little ring of stones southwest of here. I planted it with a traveler who said her father kept a light for her. Come at dawn, between five and eight. She asked me to leave a space at the end of her story. For whoever came next.',
+};
+for (const story of CALIFORNIA_STORIES) story.pages.push(keepsakes[story.id]);

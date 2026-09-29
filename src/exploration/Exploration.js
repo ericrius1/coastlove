@@ -10,6 +10,10 @@ import { CoastalChart } from '../california/CoastalChart.js';
 import { wrapHour, clockLabel } from '../california/TimeScrub.js';
 import { findSafeSpot } from './Navigation.js';
 import { mapPinArrival } from '../california/MapPin.js';
+import { TideLetters, TIDE_LETTERS } from './TideLetters.js';
+import { LetterLanterns } from './LetterLanterns.js';
+import { WILDLIFE_SPECIES, WILDLIFE_BY_KIND } from './Wildlife.js';
+import { renderFieldJournal } from './FieldJournal.js';
 import './exploration.css';
 
 const SAVE = 'coastlove.journal.v1';
@@ -18,23 +22,34 @@ export class Exploration {
 		this.app = app;
 		this.plane = new Seaplane( app.scene, app.terrainData, (...args)=>Math.max(app.coastalTowns?.flightClearance(...args)||0,app.realCities?.flightClearance(...args)||0) );
 		this.landmarks = new Landmarks(app);
-		this.life = new IslandLife( app.scene, app.terrainData, app.colliders, { loadCharacters: true, california: true } );
+		this.life = new IslandLife( app.scene, app.terrainData, app.colliders, {
+			loadCharacters: true, california: true,
+			placementClear: (x, z) => !app.coastalTowns?.containsBuilding(x, z, 1.3),
+		} );
 		this.traffic = new Traffic(app);
 		this.vehicles = new VehicleInteractions(this);
 		this.read = new Set(); this.seen = new Set(); this.found = new Set();
+		this.letters = new TideLetters();
+		this.letterLanterns = new LetterLanterns(app);
+		this.journalTab = 'places'; this._hudTime = 1;
 		try {
 			const data = JSON.parse( localStorage.getItem( SAVE ) || '{}' );
 			if ( Array.isArray( data.read ) ) this.read = new Set( data.read.filter( id => STORIES.some( s => s.id === id ) ) );
-			if ( Array.isArray( data.seen ) ) this.seen = new Set( data.seen.filter( id => [ 'fox', 'seaLion' ].includes( id ) ) );
+			if ( Array.isArray( data.seen ) ) this.seen = new Set( data.seen.filter( id => Object.hasOwn(WILDLIFE_BY_KIND, id) ) );
+			this.letters = new TideLetters(data.letters);
 			if ( Array.isArray(data.found) ) this.found = new Set(data.found.filter(id=>PLACES.some(p=>p.id===id)));
 		} catch { /* Private browsing or damaged saves must not block play. */ }
 		this.target = this.life.residents.find( r => ! this.read.has( r.id ) ) || this.life.residents[ 0 ];
 		this.dialogue = null; this.page = 0; this.journalOpen = false;
 		this.ui = document.createElement( 'section' );
 		this.ui.className = 'exp-ui';
-  this.ui.innerHTML = `<aside class="exp-card"><div class="exp-eyebrow">CALIFORNIA · THE PACIFIC COAST</div><h1>coastlove<span>Take the long way home.</span></h1><div class="exp-vehicles" aria-label="Travel modes"><button data-mode="boat"><kbd>1</kbd> Boat</button><button data-mode="plane"><kbd>2</kbd> Plane</button><button data-mode="walk"><kbd>3</kbd> Walk</button><button data-mode="car"><kbd>4</kbd> Car</button></div><p class="exp-controls"></p><button class="exp-car-stop">Coastal drive · find a car <kbd>E</kbd></button><div class="exp-divider"></div><p class="exp-objective"></p><div class="exp-progress"></div><button class="exp-map-button">Map & fast travel <kbd>M</kbd></button><button class="exp-journal-button">Field notes <kbd>J</kbd></button></aside><div class="exp-clock"><span class="exp-clock-time">16:12</span><span><kbd>Z</kbd> + trackpad · travel through time</span><input aria-label="Time of day" type="range" min="0" max="23.99" step=".01"></div><div class="exp-near" role="status"></div><section class="exp-dialog" hidden role="dialog" aria-label="Island conversation"><div class="exp-eyebrow exp-role"></div><h2 class="exp-name"></h2><p class="exp-story"></p><div class="exp-dialog-footer"><span class="exp-page"></span><button class="exp-next">Continue <kbd>E</kbd></button><button class="exp-close">Leave <kbd>Esc</kbd></button></div></section><section class="exp-journal" hidden role="dialog" aria-label="Coastal chart and field notes"><div class="exp-eyebrow">COASTLOVE · A CALIFORNIA FIELD GUIDE</div><h2>Somewhere beyond the shore.</h2><p>Border Field to the Oregon line, ten miles inland, the Bay & the islands. Real coastlines and distances, stories of our own.</p><div class="exp-chart-layout"><div><canvas class="exp-map" width="640" height="640" aria-label="Coastal map. Choose a destination from the list for accessible navigation."></canvas><p class="exp-map-caption">Scroll to zoom · drag to pan · double-click to fit. Choose Visit for an easy arrival.</p><div class="exp-quality"><label>Picture quality <select aria-label="Picture quality"><option value="1">Full detail · long views</option><option value=".8">Air · same draw distance</option><option value=".65">Smooth · same draw distance</option></select></label></div></div><div><label class="exp-filter-label">Explore a region <select class="exp-region-filter" aria-label="Explore a region"><option value="all">Entire California coast</option><option value="south">Southern California</option><option value="central">Central coast</option><option value="bay">San Francisco Bay & coast</option><option value="north">Redwood & north coast</option><option value="islands">Channel Islands</option></select></label><div class="exp-entries"></div></div></div><button class="exp-journal-close">Back to the coast <kbd>J</kbd></button></section>`;
+  this.ui.innerHTML = `<aside class="exp-card"><div class="exp-eyebrow">CALIFORNIA · THE PACIFIC COAST</div><h1>coastlove<span>Take the long way home.</span></h1><div class="exp-vehicles" aria-label="Travel modes"><button data-mode="boat"><kbd>1</kbd> Boat</button><button data-mode="plane"><kbd>2</kbd> Plane</button><button data-mode="walk"><kbd>3</kbd> Walk</button><button data-mode="car"><kbd>4</kbd> Car</button></div><p class="exp-controls"></p><button class="exp-car-stop">Coastal drive · find a car <kbd>E</kbd></button><div class="exp-divider"></div><p class="exp-objective"></p><div class="exp-progress"></div><button class="exp-letters-button">Letters on the tide <span>0 / 6</span></button><button class="exp-map-button">Map & fast travel <kbd>M</kbd></button><button class="exp-journal-button">Field notes <kbd>J</kbd></button></aside><button class="exp-listening" hidden><span class="exp-eyebrow">LETTERS ON THE TIDE</span><strong></strong><span class="exp-listening-hint"></span><span class="exp-listening-meter"><i></i></span></button><div class="exp-clock"><span class="exp-clock-time">16:12</span><span><kbd>Z</kbd> + trackpad · travel through time</span><input aria-label="Time of day" type="range" min="0" max="23.99" step=".01"></div><div class="exp-near" role="status"></div><section class="exp-dialog" hidden role="dialog" aria-label="Island conversation"><div class="exp-eyebrow exp-role"></div><h2 class="exp-name"></h2><p class="exp-story"></p><div class="exp-dialog-footer"><span class="exp-page"></span><button class="exp-next">Continue <kbd>E</kbd></button><button class="exp-close">Leave <kbd>Esc</kbd></button></div></section><section class="exp-journal" hidden role="dialog" aria-label="Coastal chart and field notes"><div class="exp-eyebrow">COASTLOVE · A CALIFORNIA FIELD GUIDE</div><h2>Somewhere beyond the shore.</h2><p>Border Field to the Oregon line, ten miles inland, the Bay & the islands. Real coastlines and distances, stories of our own.</p><nav class="exp-journal-tabs" aria-label="Field journal sections"><button data-journal="places" aria-pressed="true">Places <small></small></button><button data-journal="people" aria-pressed="false">People <small></small></button><button data-journal="wildlife" aria-pressed="false">Wildlife <small></small></button><button data-journal="letters" aria-pressed="false">Tide letters <small></small></button></nav><div class="exp-chart-layout"><div><canvas class="exp-map" width="640" height="640" aria-label="Coastal map. Choose a destination from the list for accessible navigation."></canvas><p class="exp-map-caption">Scroll to zoom · drag to pan · double-click to fit. Choose Visit for an easy arrival.</p><div class="exp-quality"><label>Picture quality <select aria-label="Picture quality"><option value="1">Full detail · long views</option><option value=".8">Air · same draw distance</option><option value=".65">Smooth · same draw distance</option></select></label></div></div><div><label class="exp-filter-label">Explore a region <select class="exp-region-filter" aria-label="Explore a region"><option value="all">Entire California coast</option><option value="south">Southern California</option><option value="central">Central coast</option><option value="bay">San Francisco Bay & coast</option><option value="north">Redwood & north coast</option><option value="islands">Channel Islands</option></select></label><div class="exp-entries"></div></div></div><button class="exp-journal-close">Back to the coast <kbd>J</kbd></button></section>`;
 		document.body.append( this.ui );
-		this.find = selector => this.ui.querySelector( selector );
+		const elements = new Map();
+		this.find = selector => { if (!elements.has(selector)) elements.set(selector, this.ui.querySelector(selector)); return elements.get(selector); };
+		this.modeButtons = [...this.ui.querySelectorAll('[data-mode]')];
+		this.ui.querySelectorAll('[data-journal]').forEach(button => button.onclick = () => { this.journalTab = button.dataset.journal; this.refresh(); });
+		this.find('.exp-letters-button').onclick = this.find('.exp-listening').onclick = () => { this.journalTab = 'letters'; this.toggleJournal(true); };
 		this.ui.querySelectorAll( '[data-mode]' ).forEach( button => button.onclick = () => this.switchMode( button.dataset.mode ) );
 		this.find('.exp-region-filter').onchange=()=>this.refresh();
 		this.find('.exp-car-stop').onclick=()=>this.visitCarStop();
@@ -51,31 +66,14 @@ export class Exploration {
  }
 
 	save() {
-		try { localStorage.setItem( SAVE, JSON.stringify( { read: [ ...this.read ], seen: [ ...this.seen ], found: [ ...this.found ] } ) ); } catch { /* Keep playing with in-memory progress. */ }
+		try { localStorage.setItem( SAVE, JSON.stringify( { read: [ ...this.read ], seen: [ ...this.seen ], found: [ ...this.found ], letters: [ ...this.letters.found ] } ) ); } catch { /* Keep playing with in-memory progress. */ }
 		this.refresh();
 	}
 
 	refresh() {
-		this.find( '.exp-progress' ).textContent = `${ this.found.size } / ${PLACES.length} places · ${ this.read.size } / ${STORIES.length} stories · ${ this.seen.size } / 2 wildlife`;
-		const entries = this.find( '.exp-entries' ); entries.replaceChildren();
-		for (const place of PLACES) {
-   const region=place.region||(place.id==='harbor'||place.id==='poppies'||place.id==='cypress'?'south':'islands'),filter=this.find('.exp-region-filter').value;if(filter!=='all'&&filter!==region)continue;
-   const article=document.createElement('article');const title=document.createElement('h3');title.textContent=`${this.found.has(place.id)?'✓ ':''}${place.label}`;article.append(title);
-   const p=document.createElement('p');p.textContent=this.found.has(place.id)?place.story:place.hint;article.append(p);
-   const track=document.createElement('button');track.textContent=this.target?.id===place.id?'Tracking':'Track';track.onclick=()=>{this.target=place;this.refresh();};article.append(track);
-   const visit=document.createElement('button');visit.textContent='Visit';visit.onclick=()=>this.visit(place);article.append(visit);entries.append(article);
-  }
-  for ( const r of this.life.residents ) {
-			const article = document.createElement( 'article' );
-			const title = document.createElement( 'h3' ); title.textContent = `${ this.read.has( r.id ) ? '✓ ' : '' }${ r.name } · ${ r.role }`; article.append( title );
-			const p = document.createElement( 'p' ); p.textContent = this.read.has( r.id ) ? r.pages.join( '\n\n' ) : 'An untold story. Follow the bearing on your travel card to find them.'; article.append( p );
-			const button = document.createElement( 'button' ); button.textContent = 'Track on compass'; button.onclick = () => { this.target = r; this.toggleJournal( false ); }; article.append( button ); entries.append( article );
-		}
-		const wildlife = document.createElement( 'p' );
-		wildlife.textContent = `Wildlife: ${ this.seen.has( 'fox' ) ? '✓ Island foxes' : '○ Island foxes' } · ${ this.seen.has( 'seaLion' ) ? '✓ Sea lions' : '○ Sea lions' }. Approach within 9 m on foot to record a sighting.`; entries.append( wildlife );
-		if ( this.read.size === STORIES.length && this.seen.size === 2 && this.found.size === PLACES.length ) {
-			const complete = document.createElement( 'h3' ); complete.textContent = 'The whole coast, remembered. There is still another sunset.'; entries.append( complete );
-		}
+		this.find('.exp-progress').textContent = `${this.found.size} / ${PLACES.length} places · ${this.read.size} / ${STORIES.length} stories · ${this.seen.size} / ${WILDLIFE_SPECIES.length} wildlife`;
+		this.find('.exp-letters-button span').textContent = `${this.letters.found.size} / ${TIDE_LETTERS.length}`;
+		if (this.journalOpen) renderFieldJournal(this);
 	}
 
  visitCarStop(){
@@ -213,9 +211,7 @@ export class Exploration {
 		app.coastalTowns?.update(dt,p.position,app.settings.timeOfDay);
         app.realCities?.update(dt);
 		this.landmarks.update(dt,p.position,app.settings.timeOfDay);
-		this.find('.exp-clock-time').textContent=clockLabel(app.settings.timeOfDay);
-		this.find('.exp-clock').classList.toggle('is-scrubbing',app.input.down('KeyZ'));
-		if(document.activeElement!==this.find('.exp-clock input'))this.find('.exp-clock input').value=app.settings.timeOfDay;
+		this.letterLanterns.update(p.position, app.settings.timeOfDay, this.letters);
 		if(this.journalOpen){this._chartTime=(this._chartTime||0)+dt;if(this._chartTime>.2){this.chart.draw(p.position,this.target,this.found);this._chartTime=0;}}
 		this.map.update();
 		const hud = app.game.hud;
@@ -229,22 +225,50 @@ export class Exploration {
 		if(vehiclePrompt)p.prompt=vehiclePrompt;
 		if ( this.inputCaptured ) p.prompt = null;
 		this.find( '.exp-near' ).textContent = vehiclePrompt ? vehiclePrompt.text : nearby && ! this.inputCaptured ? `${ nearby.name } · ${ nearby.role }` : '';
-		if ( available ) for ( const a of this.life.animals ) if ( a.group.position.distanceTo( p.position ) < 9 && ! this.seen.has( a.kind ) ) {
-			this.seen.add( a.kind ); this.save(); app.game.toast( `${ a.kind === 'fox' ? 'Island fox' : 'Sea lion' } recorded in your field journal` );
+		const overlaysOpen = !!(app.ui?.ui?._start || app.ui?.ui?._help || app.ui?.ui?._photo || app.game.guide?.open);
+		if (available && !this.inputCaptured && !overlaysOpen) for (const animal of this.life.animals) {
+			const species = WILDLIFE_BY_KIND[animal.kind];
+			if (!species || this.seen.has(animal.kind) || animal.group.position.distanceToSquared(p.position) >= species.observeRadius ** 2) continue;
+			this.seen.add(animal.kind); this.save(); app.game.toast(`${species.name} recorded in your field journal`);
 		}
+		let bell = false;
 		for(const place of PLACES){
    const distance=Math.hypot(place.x-p.position.x,place.z-p.position.z);
-   if(place.kind==='wreck'&&distance<14&&available&&!this.inputCaptured&&!nearby&&!vehiclePrompt){p.prompt={key:'E',text:'Ring the ship’s bell'};if(app.input.hit('KeyE')){this.landmarks.ringBell();this.discover(place);}}
-   if(this.found.has(place.id)||this.paused)continue;
+   if(place.kind==='wreck'&&distance<14&&available&&!this.inputCaptured&&!overlaysOpen&&!nearby&&!vehiclePrompt){p.prompt={key:'E',text:'Ring the ship’s bell'};if(app.input.hit('KeyE')){this.landmarks.ringBell();this.discover(place);bell=true;}}
+   if(this.found.has(place.id)||this.paused||distance>=place.radius)continue;
    const height=place.water?0:app.terrainData.heightAt(place.x,place.z);
    if(distance<place.radius&&Math.abs(p.position.y-height)<(place.kind==='arch'?28:18)&&place.kind!=='wreck')this.discover(place);
+  }
+  const current = this.letters.current;
+  const site = current && this.letterLanterns.sites.get(current.id);
+  const letter = this.letters.update(dt, { position: p.position, hour: app.settings.timeOfDay, mode: p.mode,
+   blocked: this.inputCaptured || app.freeCam || p.busy || overlaysOpen || !!hud?.invOpen || !!hud?.standOpen || !!hud?.catchOpen,
+   bell, center: site?.position, groundY: site?.position.y ?? 0 });
+  if (letter) {
+   this.journalTab = 'letters'; this.save(); this._letterNotice = { letter, remaining: 16 };
+   app.audio?.discovery?.(site.position, { chapter: TIDE_LETTERS.indexOf(letter), complete: this.letters.complete });
+   app.game.toast(`Letter ${this.letters.found.size} of ${TIDE_LETTERS.length} · ${letter.title} · J to read`);
+  }
+  if (this._letterNotice) { this._letterNotice.remaining -= dt; if(this._letterNotice.remaining <= 0) this._letterNotice = null; }
+  this._hudTime += dt;
+  if(this._hudTime < .12) return;
+  this._hudTime = 0;
+  this.find('.exp-clock-time').textContent=clockLabel(app.settings.timeOfDay);
+  this.find('.exp-clock').classList.toggle('is-scrubbing',app.input.down('KeyZ'));
+  if(document.activeElement!==this.find('.exp-clock input'))this.find('.exp-clock input').value=app.settings.timeOfDay;
+  const listening = this.find('.exp-listening'), notice = this._letterNotice;
+  listening.hidden = this.inputCaptured || (!notice && !this.letters.near);
+  if (!listening.hidden) {
+   this.find('.exp-listening strong').textContent = notice ? notice.letter.title : this.letters.current.title;
+   this.find('.exp-listening-hint').textContent = notice ? 'A letter remembered. Open your field notes to read it.' : !this.letters.ready ? this.letters.current.instruction : this.letters.current.id === 'bell' ? 'Ring the ship’s bell with E.' : `Be still and listen · ${Math.max(1, Math.ceil(this.letters.current.duration - this.letters.elapsed))} seconds`;
+   this.find('.exp-listening-meter i').style.transform = `scaleX(${notice ? 1 : this.letters.progress})`;
   }
   const targetPosition=this.target.position||this.target;
   const dx = targetPosition.x - p.position.x, dz = targetPosition.z - p.position.z;
 		const compass = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
 		const bearing = ( Math.atan2( dx, - dz ) * 180 / Math.PI + 360 ) % 360;
 		this.find( '.exp-objective' ).textContent = `${ this.target.label || this.target.name } · ${ Math.round( Math.hypot( dx, dz ) ) } m ${ compass[ Math.round( bearing / 45 ) % 8 ] }`;
-		this.ui.querySelectorAll( '[data-mode]' ).forEach( button => button.setAttribute( 'aria-pressed', String( button.dataset.mode === p.mode && ! app.freeCam ) ) );
+		this.modeButtons.forEach(button => { const pressed = String(button.dataset.mode === p.mode && !app.freeCam); if(button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed); });
 		this.find( '.exp-controls' ).textContent = p.mode === 'car' ? `W / S accelerate & reverse · A / D or trackpad steer\n${Math.round(Math.abs(this.traffic.active?.speed||0)*3.6)} km/h · Space drift · Shift boost · E get out` : p.mode === 'plane' ? `Trackpad turns & pitches · A / D also turn\nW / S speed · Shift + W fast cruise · L level\nSpace / C up / down · ${ Math.round( this.plane.speed * 3.6 ) } km/h\nE land & get out` : p.mode === 'boat' ? 'WASD steer & throttle · Shift boost\nE get out · M map & fast travel' : 'WASD walk · Shift run · E enter vehicle / listen\n1 summons boat · 2 takes flight';
 		this.ui.hidden = !! ( app.ui?.ui?._photo || app.ui?.ui?._start || app.ui?.ui?._help || app.game.guide?.open );
 	}

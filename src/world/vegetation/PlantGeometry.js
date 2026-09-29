@@ -872,12 +872,15 @@ export function buildCanopyNear() {
 // keeps the plant whose kind matches the instance (floor of its seed). Every instance runs the
 // vertices of all kinds in its mesh, so the heavy banana clumps have a mesh of their own.
 export const UNDERSTORY = { YOUNG: 1, BANANA: 2, FERN: 3, BANANA_B: 4 };
-export function buildUnderstory() {
+export function buildUnderstory( { youngPalms = true } = {} ) {
 
 	const b = new GeoBuilder();
 	const tris = {};
 	let t0 = 0;
-	b.kind = UNDERSTORY.YOUNG; buildYoungPalm( 5, b ); tris.young = b.triangles - t0; t0 = b.triangles;
+	// California uses ferns alone: omit the unused palm vertices instead of
+	// running and collapsing them for every fern in a dense woodland floor.
+	if ( youngPalms ) { b.kind = UNDERSTORY.YOUNG; buildYoungPalm( 5, b ); }
+	tris.young = b.triangles - t0; t0 = b.triangles;
 	b.kind = UNDERSTORY.FERN; buildFern( 3, b ); tris.fern = b.triangles - t0;
 	return { geometry: b.build( 4, new THREE.Vector3( 0, 1.5, 0 ) ), triangles: b.triangles, perKind: tris };
 

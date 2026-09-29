@@ -12,6 +12,16 @@ const BANK_AMOUNT = 0.55;
 const BANK_SMOOTH = 4.5;
 const clamp = ( value, min, max ) => Math.max( min, Math.min( max, value ) );
 
+// Live flight speeds (m/s). The debug pane binds this object.
+export const PLANE = {
+	cruise: 52,
+	fast: 84,
+	slow: 28,
+	boost: 124,
+	sprint: 360,
+	accel: 1.8,
+};
+
 export class Seaplane {
 	constructor( scene, terrain, clearance = null ) {
 		this.terrain = terrain;
@@ -23,7 +33,7 @@ export class Seaplane {
 		this.position = this.group.position;
 		this.heading = 0;
 		this.pitch = 0;
-		this.speed = 26;
+		this.speed = PLANE.cruise;
 		this.bank = 0;
 		this.climb = 0;
 		this.time = 0;
@@ -62,7 +72,7 @@ export class Seaplane {
 		this.heading = heading;
 		this.pitch = 0;
 		this.bank = this.climb = 0;
-		this.speed = 26;
+		this.speed = PLANE.cruise;
 		this.group.visible = true;
 		this.cameraReady = false;
 	}
@@ -87,8 +97,8 @@ export class Seaplane {
 		const targetBank = clamp( - yawDelta / Math.max( dt, 1e-4 ) * BANK_AMOUNT, - 1, 1 );
 		this.bank += ( targetBank - this.bank ) * Math.min( 1, dt * BANK_SMOOTH );
 		const boost = input.down( 'ShiftLeft' ) || input.down( 'ShiftRight' );
-		const targetSpeed = input.captured ? this.speed : boost && input.down('KeyW') ? 180 : boost ? 62 : input.down( 'KeyW' ) ? 42 : input.down( 'KeyS' ) ? 14 : 26;
-		this.speed += ( targetSpeed - this.speed ) * ( 1 - Math.exp( - dt * 1.8 ) );
+		const targetSpeed = input.captured ? this.speed : boost && input.down('KeyW') ? PLANE.sprint : boost ? PLANE.boost : input.down( 'KeyW' ) ? PLANE.fast : input.down( 'KeyS' ) ? PLANE.slow : PLANE.cruise;
+		this.speed += ( targetSpeed - this.speed ) * ( 1 - Math.exp( - dt * PLANE.accel ) );
 		const vertical = Number( input.down( 'Space' ) ) - Number( input.down( 'KeyC' ) );
 		const horizontalStep = Math.cos( this.pitch ) * this.speed * dt;
 		this.position.x += Math.sin( this.heading ) * horizontalStep;

@@ -2,6 +2,9 @@
   "name": "coastlove",
   "version": "1.0.0",
   "scripts": {
+    "native": "node native/tools/run.mjs",
+    "native:assets": "node native/tools/export-world.mjs",
+    "native:benchmark": "node native/tools/run.mjs --headless --benchmark 180 --capture native/captures/harbor.png",
     "dev": "vite --host 127.0.0.1 --port 5190",
     "build": "vite build",
     "preview": "vite preview",
@@ -11,7 +14,8 @@
     "test:traffic": "node test/traffic.mjs",
     "test:controls": "node test/controls.mjs",
     "test:metric": "node test/metric-world.mjs && node test/arcade-car.mjs && node test/large-world.mjs",
-    "test:water": "node test/shore-clock.mjs"
+    "test:water": "node test/shore-clock.mjs",
+    "test:nature": "node test/tide-letters.mjs && node test/coastal-wildlife.mjs && node test/forests.mjs && node test/soundscape.mjs && node test/placement-integration.mjs && node test/coastal-details.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.0",
@@ -22,6 +26,7 @@
   "type": "module",
   "dependencies": {
     "earcut": "^3.2.3",
-    "proj4": "^2.22.0"
+    "proj4": "^2.22.0",
+    "tweakpane": "^4.0.5"
   }
 }

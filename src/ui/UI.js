@@ -2166,6 +2166,7 @@ export class UI {
 					<section>
 						<h3>Interface</h3>
 						${ row( k( 'H' ), 'Settings panel' ) }
+						${ row( k( '/' ), 'Seaplane speed pane' ) }
 						${ row( k( 'P' ), 'Photo mode<small>Hides all interface</small>' ) }
 						${ row( k( 'F1' ) + k( '?' ), 'This sheet' ) }
 						${ row( k( 'Esc' ), 'Release the mouse' ) }

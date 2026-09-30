@@ -1,3 +1,4 @@
+import { applyCoastalMood } from './california/CoastalMood.js';
 import {loadCityGreenery} from './california/Vegetation.js';
 import {StuntRamps} from './california/StuntRamps.js';
 import {GoldenGate} from './california/GoldenGate.js';
@@ -393,7 +394,7 @@ fn terrainWetness( xz: vec2f, h: f32 ) -> vec2f {
 		this.profiler.track( 'fft columns', this.fft.columnKernel );
 		this.profiler.track( 'sky view', this.atmosphere.skyViewKernel );
 
-		this.updateSun();
+		applyCoastalMood( this, this.qs.get( 'mood' ) || 'pacific' ) || applyCoastalMood( this, 'pacific' );
 		installDebugViews( this );
 		window.__app = this;
 		this.gpu = GPU; // console / test access

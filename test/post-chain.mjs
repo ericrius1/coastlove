@@ -32,6 +32,8 @@ fn waterQueryHeightAtXZ( xz: vec2f ) -> f32 { return stubParams.waterH + 0.02 * 
 ` } ) };
 const caustics = { module: new ShaderModule( { name: 'caustics', code: /* wgsl */`
 fn causticsSampleLevel( p: vec3f, z: f32, k: f32 ) -> vec3f { let a = sin( p.x * 2.1 + p.z * 0.7 ) * sin( p.z * 2.3 - p.x * 0.4 ); return vec3f( 1.0 + 1.5 * a * a * a * a - 0.3 ); }
+fn causticsDetailK( xz: vec2f ) -> f32 { return 1.0; }
+fn causticsSampleShaft( p: vec3f, z: f32, level: f32, detail: f32 ) -> vec3f { return causticsSampleLevel( p, z, level ); }
 ` } ) };
 let atmosphere = { module: new ShaderModule( { name: 'atmosphere', code: /* wgsl */`
 fn atmosphereSkyLuminance( dir: vec3f ) -> vec3f {

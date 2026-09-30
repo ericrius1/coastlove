@@ -40,7 +40,7 @@ export class AppUI {
 			timeSpeed: app.settings.timeSpeed || 0.05,
 			clouds: app.clouds ? app.clouds.coverage.value : 0.45,
 			cirrus: app.clouds && app.clouds.cirrus ? app.clouds.cirrus.value : 0.5,
-			exposure: 0,
+			exposure: Math.log2( app.settings.exposure / 0.55 ),
 			fov: app.camera.fov,
 			camMode: 'third',
 			ao: app.post.params.aoStrength.value,
@@ -49,6 +49,7 @@ export class AppUI {
 			vignette: app.post.params.vignette.value,
 			saturation: app.post.params.saturation.value,
 			contrast: app.post.params.contrast.value,
+			coastGrade: app.post.params.coastGrade.value,
 			grain: app.post.params.grain.value,
 			renderScale: app.settings.renderScale,
 			shadows: true,
@@ -220,6 +221,7 @@ export class AppUI {
 		if ( app.post.flare ) post.addSlider( { label: 'Lens flare', object: s, key: 'flare', min: 0, max: 2, step: 0.05, onChange: ( v ) => { app.post.flare.strength.value = v; } } );
 		post.addSlider( { label: 'Saturation', object: s, key: 'saturation', min: 0.5, max: 1.5, step: 0.01, onChange: ( v ) => { P.saturation.value = v; } } );
 		post.addSlider( { label: 'Contrast', object: s, key: 'contrast', min: 0.8, max: 1.3, step: 0.01, onChange: ( v ) => { P.contrast.value = v; } } );
+		post.addSlider( { label: 'Coastal color', object: s, key: 'coastGrade', min: 0, max: 1, step: 0.01, tooltip: 'Cool open shade and warm sunlit highlights. Zero restores the neutral filmic grade.', onChange: ( v ) => { P.coastGrade.value = v; } } );
 		post.addSlider( { label: 'Vignette', object: s, key: 'vignette', min: 0, max: 1, step: 0.01, onChange: ( v ) => { P.vignette.value = v; } } );
 		post.addSlider( { label: 'Film grain', object: s, key: 'grain', min: 0, max: 0.06, step: 0.001, onChange: ( v ) => { P.grain.value = v; } } );
 

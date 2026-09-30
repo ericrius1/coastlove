@@ -32,6 +32,19 @@ const CLR = [ 0, 0, 0, 0 ];
 
 // three's ACES fitted curve (sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT, RRT + ODT fit,
 // ODT_SAT => XYZ => D60_2_D65 => sRGB), clamped
+export const COASTAL_GRADE_WGSL = /* wgsl */`
+fn coastalGrade( color: vec3f, strength: f32 ) -> vec3f {
+	let l = dot( color, vec3f( 0.2126, 0.7152, 0.0722 ) );
+	let shade = ( 1.0 - smoothstep( 0.12, 0.62, l ) ) * smoothstep( 0.0, 0.08, l );
+	let sun = smoothstep( 0.42, 0.88, l );
+	// Multiplicative grading retains true black and local contrast. Let white
+	// highlights stay white, so foam and clouds do not turn orange.
+	let gain = vec3f( 1.0 ) + strength * ( vec3f( -0.065, 0.012, 0.075 ) * shade
+		+ vec3f( 0.04, 0.009, -0.045 ) * sun * ( 1.0 - smoothstep( 0.8, 1.0, l ) ) );
+	return clamp( color * gain, vec3f( 0.0 ), vec3f( 1.0 ) );
+}
+`;
+
 const ACES = /* wgsl */`
 fn RRTAndODTFit( v: vec3f ) -> vec3f {
 	let a = v * ( v + 0.0245786 ) - 0.000090537;
@@ -72,11 +85,12 @@ export class PostFX {
 		this.uniforms = new UniformBlock( 'PostParams', {
 			aoStrength: [ 'f32', 1.0 ],
 			bloom: [ 'f32', 0.05 ],
-			vignette: [ 'f32', 0.28 ],
+			vignette: [ 'f32', 0.18 ],
 			saturation: [ 'f32', 1.06 ],
 			contrast: [ 'f32', 1.04 ],
-			warmth: [ 'f32', 0.02 ],
-			grain: [ 'f32', 0.012 ],
+			warmth: [ 'f32', 0.012 ],
+			coastGrade: [ 'f32', 0.6 ], // luminance-aware cool shade / warm highlight separation
+			grain: [ 'f32', 0.006 ],
 			sharpen: [ 'f32', 0.45 ], // RCAS strength (0 = off, 1 = strong)
 		}, { label: 'post' } );
 		this.params = this.uniforms.fields;
@@ -454,7 +468,7 @@ ${ reduce }
 				postHalf: { texture: () => this.half.texture },
 				postExposure: { storage: this.exposure, access: 'read' },
 			},
-			code: ACES + /* wgsl */`
+			code: ACES + COASTAL_GRADE_WGSL + /* wgsl */`
 fn tm( c: vec3f ) -> vec3f { return c / ( max( c.r, max( c.g, c.b ) ) + 1.0 ); }
 fn loadResolved( p: vec2i ) -> vec3f { return textureLoad( postResolved, p, 0 ).rgb; }
 
@@ -517,7 +531,7 @@ fn fragment( in: FSIn ) -> vec4f {
 	let n = ( postHash( px, fi ) + postHash( px + vec2u( 7919u, 104729u ), fi ) - 1.0 ) * 0.5;
 	c = c + c * ( n * post.grain );
 	// renderOutput: ACES filmic tone mapping with the exposure, sRGB transfer
-	let t = acesFilmicToneMapping( c, frame.exposure );
+	let t = coastalGrade( acesFilmicToneMapping( c, frame.exposure ), post.coastGrade );
 	// +-1 LSB triangular dither before the 8-bit output: no banding in the sky gradients
 	let dq = ( postHash( px + vec2u( 31337u, 271u ), fi ) + postHash( px + vec2u( 1013u, 65537u ), fi ) - 1.0 ) / 255.0;
 	return vec4f( linearToSrgb( t ) + vec3f( dq ), 1.0 );

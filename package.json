@@ -8,7 +8,7 @@
     "dev": "vite --host 127.0.0.1 --port 5190",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/game-logic.mjs && node test/engine-smoke.mjs",
+    "test": "node test/game-logic.mjs && node test/engine-smoke.mjs && node test/engine-performance.mjs && node test/terrain-streaming.mjs && node test/coastal-moods.mjs",
     "test:exploration": "node test/exploration.mjs",
     "test:california": "node test/california.mjs && node test/view-distance.mjs && node test/statewide.mjs",
     "test:traffic": "node test/traffic.mjs",

@@ -30,6 +30,7 @@ export class Engine {
 		this.meshRenderer.syncPipelines = false; // compile in the background (App.precompile waits for them)
 		this.camera = new PerspectiveCamera( 62, window.innerWidth / window.innerHeight, 0.06, 60000 );
 		this.scene = new Scene();
+		this.clock.connect( document );
 		window.addEventListener( 'resize', () => this.resize() );
 		this.resize();
 
@@ -79,14 +80,20 @@ export class Engine {
 
 	start( update ) {
 
+		// Restarting the engine must replace its old loop, and loading/paused time must not
+		// become a simulation step. The loop token also handles stop/start from inside update.
+		this.stop();
+		this.clock.reset();
+		const loopId = this._loopId;
 		const loop = ( t ) => {
 
+			if ( loopId !== this._loopId ) return;
 			this.clock.update( t );
 			let dt = this.clock.getDelta();
 			if ( dt > 0.1 ) dt = 0.1;
 			this.frame ++;
 			update( dt, this.clock.getElapsed() );
-			this._raf = requestAnimationFrame( loop );
+			if ( loopId === this._loopId ) this._raf = requestAnimationFrame( loop );
 
 		};
 
@@ -96,7 +103,9 @@ export class Engine {
 
 	stop() {
 
+		this._loopId = ( this._loopId || 0 ) + 1;
 		cancelAnimationFrame( this._raf );
+		this._raf = null;
 
 	}
 

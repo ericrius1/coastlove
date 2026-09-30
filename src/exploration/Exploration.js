@@ -8,6 +8,7 @@ import { CALIFORNIA_STORIES as STORIES, PLACES } from '../california/Region.js';
 import { Landmarks } from '../california/Landmarks.js';
 import { CoastalChart } from '../california/CoastalChart.js';
 import { wrapHour, clockLabel } from '../california/TimeScrub.js';
+import { COASTAL_MOODS, applyCoastalMood } from '../california/CoastalMood.js';
 import { findSafeSpot } from './Navigation.js';
 import { mapPinArrival } from '../california/MapPin.js';
 import { TideLetters, TIDE_LETTERS } from './TideLetters.js';
@@ -32,6 +33,7 @@ export class Exploration {
 		this.letters = new TideLetters();
 		this.letterLanterns = new LetterLanterns(app);
 		this.journalTab = 'places'; this._hudTime = 1;
+		this.cinema = false; this._viewDirection = new Vector3();
 		try {
 			const data = JSON.parse( localStorage.getItem( SAVE ) || '{}' );
 			if ( Array.isArray( data.read ) ) this.read = new Set( data.read.filter( id => STORIES.some( s => s.id === id ) ) );
@@ -43,11 +45,59 @@ export class Exploration {
 		this.dialogue = null; this.page = 0; this.journalOpen = false;
 		this.ui = document.createElement( 'section' );
 		this.ui.className = 'exp-ui';
-  this.ui.innerHTML = `<aside class="exp-card"><div class="exp-eyebrow">CALIFORNIA · THE PACIFIC COAST</div><h1>coastlove<span>Take the long way home.</span></h1><div class="exp-vehicles" aria-label="Travel modes"><button data-mode="boat"><kbd>1</kbd> Boat</button><button data-mode="plane"><kbd>2</kbd> Plane</button><button data-mode="walk"><kbd>3</kbd> Walk</button><button data-mode="car"><kbd>4</kbd> Car</button></div><p class="exp-controls"></p><button class="exp-car-stop">Coastal drive · find a car <kbd>E</kbd></button><div class="exp-divider"></div><p class="exp-objective"></p><div class="exp-progress"></div><button class="exp-letters-button">Letters on the tide <span>0 / 6</span></button><button class="exp-map-button">Map & fast travel <kbd>M</kbd></button><button class="exp-journal-button">Field notes <kbd>J</kbd></button></aside><button class="exp-listening" hidden><span class="exp-eyebrow">LETTERS ON THE TIDE</span><strong></strong><span class="exp-listening-hint"></span><span class="exp-listening-meter"><i></i></span></button><div class="exp-clock"><span class="exp-clock-time">16:12</span><span><kbd>Z</kbd> + trackpad · travel through time</span><input aria-label="Time of day" type="range" min="0" max="23.99" step=".01"></div><div class="exp-near" role="status"></div><section class="exp-dialog" hidden role="dialog" aria-label="Island conversation"><div class="exp-eyebrow exp-role"></div><h2 class="exp-name"></h2><p class="exp-story"></p><div class="exp-dialog-footer"><span class="exp-page"></span><button class="exp-next">Continue <kbd>E</kbd></button><button class="exp-close">Leave <kbd>Esc</kbd></button></div></section><section class="exp-journal" hidden role="dialog" aria-label="Coastal chart and field notes"><div class="exp-eyebrow">COASTLOVE · A CALIFORNIA FIELD GUIDE</div><h2>Somewhere beyond the shore.</h2><p>Border Field to the Oregon line, ten miles inland, the Bay & the islands. Real coastlines and distances, stories of our own.</p><nav class="exp-journal-tabs" aria-label="Field journal sections"><button data-journal="places" aria-pressed="true">Places <small></small></button><button data-journal="people" aria-pressed="false">People <small></small></button><button data-journal="wildlife" aria-pressed="false">Wildlife <small></small></button><button data-journal="letters" aria-pressed="false">Tide letters <small></small></button></nav><div class="exp-chart-layout"><div><canvas class="exp-map" width="640" height="640" aria-label="Coastal map. Choose a destination from the list for accessible navigation."></canvas><p class="exp-map-caption">Scroll to zoom · drag to pan · double-click to fit. Choose Visit for an easy arrival.</p><div class="exp-quality"><label>Picture quality <select aria-label="Picture quality"><option value="1">Full detail · long views</option><option value=".8">Air · same draw distance</option><option value=".65">Smooth · same draw distance</option></select></label></div></div><div><label class="exp-filter-label">Explore a region <select class="exp-region-filter" aria-label="Explore a region"><option value="all">Entire California coast</option><option value="south">Southern California</option><option value="central">Central coast</option><option value="bay">San Francisco Bay & coast</option><option value="north">Redwood & north coast</option><option value="islands">Channel Islands</option></select></label><div class="exp-entries"></div></div></div><button class="exp-journal-close">Back to the coast <kbd>J</kbd></button></section>`;
+  this.ui.innerHTML = `<aside class="exp-card" aria-label="Your coastal journey">
+   <div class="exp-card-heading"><div><div class="exp-eyebrow"><svg width="23" height="12" viewBox="0 0 23 12" fill="none" aria-hidden="true"><path d="M1 4c4-5 7 5 11 0s7 5 10 0M1 9c4-5 7 5 11 0s7 5 10 0" stroke="currentColor" stroke-width="1.2"/></svg> COASTLOVE</div><h1 class="exp-location">Along the Pacific</h1><p class="exp-location-detail">California, at your own pace.</p></div>
+   <div class="exp-bearing" aria-label="Camera bearing"><svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="19" fill="none" stroke="currentColor" stroke-opacity=".25"/><path d="M23 2v5M23 39v5M2 23h5M39 23h5" stroke="currentColor" stroke-opacity=".5"/><g class="exp-bearing-needle"><path d="m23 9 4 14-4-2-4 2Z" fill="currentColor"/><path d="m23 37-4-14 4 2 4-2Z" fill="currentColor" opacity=".25"/></g><circle cx="23" cy="23" r="2" fill="currentColor"/></svg><span class="exp-bearing-value">N · 000°</span></div></div>
+   <div class="exp-vehicles" aria-label="Travel modes"><button data-mode="boat"><kbd>1</kbd> Boat</button><button data-mode="plane"><kbd>2</kbd> Fly</button><button data-mode="walk"><kbd>3</kbd> Walk</button><button data-mode="car"><kbd>4</kbd> Drive</button></div>
+   <p class="exp-objective"></p>
+   <nav class="exp-actions" aria-label="Explore the coast"><button class="exp-map-button" aria-keyshortcuts="M">Atlas <kbd>M</kbd></button><button class="exp-journal-button" aria-keyshortcuts="J">Field notes <kbd>J</kbd></button><button class="exp-cinema-button" aria-keyshortcuts="F10" title="Hide all controls. Press F10 or Escape to return.">Cinema <kbd>F10</kbd></button></nav>
+   <details class="exp-journey"><summary>Journey & controls <span>Take the long way.</span></summary><p class="exp-controls"></p><button class="exp-car-stop">Coastal drive · find a car <kbd>E</kbd></button><div class="exp-divider"></div><div class="exp-progress"></div><button class="exp-letters-button">Letters on the tide <span>0 / 6</span></button></details>
+  </aside><button class="exp-listening" hidden><span class="exp-eyebrow">LETTERS ON THE TIDE</span><strong></strong><span class="exp-listening-hint"></span><span class="exp-listening-meter"><i></i></span></button><section class="exp-clock" aria-label="Light and time of day"><div class="exp-light-header"><div><span class="exp-eyebrow">BORROW A LITTLE LIGHT</span><span class="exp-mood-caption">A Pacific afternoon</span></div><span class="exp-clock-time">16:12</span></div><div class="exp-moods" aria-label="Coastal moods">${COASTAL_MOODS.map(mood => `<button data-mood="${mood.id}" aria-pressed="false" title="${mood.description}" style="--mood-accent:${mood.accent}"><i aria-hidden="true"></i>${mood.label}</button>`).join('')}</div><label class="exp-time-control"><span><kbd>Z</kbd> + drag / trackpad</span><input aria-label="Time of day" type="range" min="0" max="23.99" step=".01"></label></section><div class="exp-near" role="status"></div><section class="exp-dialog" hidden role="dialog" aria-label="Island conversation"><div class="exp-eyebrow exp-role"></div><h2 class="exp-name"></h2><p class="exp-story"></p><div class="exp-dialog-footer"><span class="exp-page"></span><button class="exp-next">Continue <kbd>E</kbd></button><button class="exp-close">Leave <kbd>Esc</kbd></button></div></section><section class="exp-journal" hidden role="dialog" aria-label="Coastal chart and field notes"><div class="exp-eyebrow">COASTLOVE · A CALIFORNIA FIELD GUIDE</div><h2>Somewhere beyond the shore.</h2><p>Border Field to the Oregon line, ten miles inland, the Bay & the islands. Real coastlines and distances, stories of our own.</p><nav class="exp-journal-tabs" aria-label="Field journal sections"><button data-journal="places" aria-pressed="true">Places <small></small></button><button data-journal="people" aria-pressed="false">People <small></small></button><button data-journal="wildlife" aria-pressed="false">Wildlife <small></small></button><button data-journal="letters" aria-pressed="false">Tide letters <small></small></button></nav><div class="exp-chart-layout"><div><canvas class="exp-map" width="640" height="640" aria-label="Coastal map. Choose a destination from the list for accessible navigation."></canvas><p class="exp-map-caption">Scroll to zoom · drag to pan · double-click to fit. Choose Visit for an easy arrival.</p><div class="exp-quality"><label>Picture quality <select aria-label="Picture quality"><option value="1">Full detail · long views</option><option value=".8">Air · same draw distance</option><option value=".65">Smooth · same draw distance</option></select></label></div></div><div><label class="exp-filter-label">Explore a region <select class="exp-region-filter" aria-label="Explore a region"><option value="all">Entire California coast</option><option value="south">Southern California</option><option value="central">Central coast</option><option value="bay">San Francisco Bay & coast</option><option value="north">Redwood & north coast</option><option value="islands">Channel Islands</option></select></label><div class="exp-entries"></div></div></div><button class="exp-journal-close">Back to the coast <kbd>J</kbd></button></section>`;
 		document.body.append( this.ui );
 		const elements = new Map();
 		this.find = selector => { if (!elements.has(selector)) elements.set(selector, this.ui.querySelector(selector)); return elements.get(selector); };
 		this.modeButtons = [...this.ui.querySelectorAll('[data-mode]')];
+		this.moodButtons = [...this.ui.querySelectorAll('[data-mood]')];
+		for (const button of this.moodButtons) button.onclick = () => {
+			applyCoastalMood(app, button.dataset.mood);
+			this.updateMood();
+		};
+		this.find('.exp-cinema-button').onclick = () => this.setCinema(true);
+		this.cinemaReturn = document.createElement('button');
+		this.cinemaReturn.className = 'exp-cinema-return';
+		this.cinemaReturn.hidden = true;
+		this.cinemaReturn.setAttribute('aria-keyshortcuts', 'F10 Escape');
+		this.cinemaReturn.innerHTML = 'Back to the coast <kbd>F10</kbd> <span>or Esc</span>';
+		this.cinemaReturn.onclick = () => this.setCinema(false);
+		document.body.append(this.cinemaReturn);
+		window.addEventListener('keydown', event => {
+			if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+			const typing = event.target?.matches?.('input, select, textarea, [contenteditable="true"]');
+			if (event.code === 'F10' && !typing && !app.ui?.ui?._start) {
+				event.preventDefault(); event.stopImmediatePropagation();
+				this.setCinema(!app.ui?.ui?._photo);
+			} else if (event.code === 'Tab' && this.cinema) {
+				event.preventDefault(); event.stopImmediatePropagation();
+				this.cinemaReturn.focus();
+			} else if (event.code === 'Escape' && this.cinema) {
+				event.preventDefault(); event.stopImmediatePropagation();
+				this.setCinema(false);
+			}
+		}, {capture: true});
+		document.addEventListener('pointerlockchange', () => {
+			// Browsers may reserve Escape to release pointer lock before dispatching a key event.
+			if (this.cinema && !document.pointerLockElement) this.setCinema(false);
+		});
+		// Mouse clicks hand the keyboard back to the world; keyboard activation keeps focus.
+		const isolateControls = event => {
+			if (event.target.closest?.('button, summary, input, select')
+				&& ['Tab', 'Space', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) event.stopPropagation();
+		};
+		this.ui.addEventListener('keydown', isolateControls);
+		this.cinemaReturn.addEventListener('keydown', isolateControls);
+		this.ui.addEventListener('click', event => {
+			if (event.detail > 0) event.target.closest?.('button')?.blur?.();
+		});
 		this.ui.querySelectorAll('[data-journal]').forEach(button => button.onclick = () => { this.journalTab = button.dataset.journal; this.refresh(); });
 		this.find('.exp-letters-button').onclick = this.find('.exp-listening').onclick = () => { this.journalTab = 'letters'; this.toggleJournal(true); };
 		this.ui.querySelectorAll( '[data-mode]' ).forEach( button => button.onclick = () => this.switchMode( button.dataset.mode ) );
@@ -63,7 +113,60 @@ export class Exploration {
   this.find('.exp-clock input').oninput=e=>{app.settings.timeSpeed=0;app.settings.timeOfDay=Number(e.target.value);};
   this.find('.exp-quality select').onchange=e=>app.setRenderScale(Number(e.target.value));
   this.refresh();
+  this.updateMood();
  }
+
+	setCinema(on) {
+		on = !!on;
+		if (on) {
+			this.closeDialogue(); this.toggleJournal(false); this.toggleMap(false);
+			this.find('.exp-journey').open = false;
+			this.app.game.hud?.closeStand(); this.app.game.hud?.toggleInventory(false);
+		}
+		this.cinema = on;
+		this.app.ui?.ui?.setPhotoMode?.(on);
+		document.body.classList.toggle('coastlove-cinema', on);
+		this.cinemaReturn.hidden = !on;
+		clearTimeout(this._cinemaHintTimer);
+		this.cinemaReturn.classList.toggle('is-showing', on);
+		if (on) {
+			this.find('.exp-cinema-button').blur?.();
+			this._cinemaHintTimer = setTimeout(() => this.cinemaReturn.classList.remove('is-showing'), 3800);
+		} else {
+			this.app.input.consumeLook();
+		}
+	}
+
+	updateMood() {
+		const hour = wrapHour(this.app.settings.timeOfDay);
+		const mood = COASTAL_MOODS.find(mood => Math.abs(hour - mood.hour) < 0.12);
+		for (const button of this.moodButtons) {
+			const selected = String(button.dataset.mood === mood?.id);
+			if (button.getAttribute('aria-pressed') !== selected) button.setAttribute('aria-pressed', selected);
+		}
+		this.find('.exp-mood-caption').textContent = mood?.description
+			|| (hour < 5 || hour >= 20 ? 'An ocean of stars.' : hour < 8 ? 'The coast wakes slowly.' : hour < 16 ? 'A little room to wander.' : hour < 18.5 ? 'Stay for the last light.' : 'The blue between day and night.');
+	}
+
+	updateNavigation() {
+		const app = this.app, position = app.player.position;
+		if(this.ui.dataset.mode !== app.player.mode)this.ui.dataset.mode = app.player.mode;
+		let nearest = null, nearestDistance = Infinity;
+		for (const place of PLACES) {
+			const distance = (place.x - position.x) ** 2 + (place.z - position.z) ** 2;
+			if (distance < nearestDistance) { nearest = place; nearestDistance = distance; }
+		}
+		const distance = Math.sqrt(nearestDistance);
+		this.find('.exp-location').textContent = nearest && distance < 2500 ? nearest.label || nearest.name : 'Along the Pacific';
+		this.find('.exp-location-detail').textContent = nearest && distance >= 2500
+			? `${(distance / 1000).toFixed(1)} km from ${nearest.label || nearest.name}` : 'California, at your own pace.';
+		if (app.camera?.getWorldDirection) app.camera.getWorldDirection(this._viewDirection);
+		else this._viewDirection.set(-Math.sin(app.player.yaw || 0), 0, -Math.cos(app.player.yaw || 0));
+		const bearing = (Math.atan2(this._viewDirection.x, -this._viewDirection.z) * 180 / Math.PI + 360) % 360;
+		const cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(bearing / 45) % 8];
+		this.find('.exp-bearing-value').textContent = `${cardinal} · ${String(Math.round(bearing) % 360).padStart(3, '0')}°`;
+		this.find('.exp-bearing-needle').style.transform = `rotate(${-bearing}deg)`;
+	}
 
 	save() {
 		try { localStorage.setItem( SAVE, JSON.stringify( { read: [ ...this.read ], seen: [ ...this.seen ], found: [ ...this.found ], letters: [ ...this.letters.found ] } ) ); } catch { /* Keep playing with in-memory progress. */ }
@@ -105,6 +208,7 @@ export class Exploration {
 
  toggleMap(open = !this.map.open){
   if(open){
+   if(this.cinema)this.setCinema(false);
    this.closeDialogue();this.toggleJournal(false);this.app.game.hud?.closeStand();this.app.game.hud?.toggleInventory(false);
    document.exitPointerLock?.();this.app.input.mouseDown=this.app.input.rightDown=false;this.app.input.consumeLook();this.app.input.consumeWheel();
   }
@@ -114,7 +218,7 @@ export class Exploration {
  }
 
  toggleJournal( open = ! this.journalOpen ) {
-  if(open)this.toggleMap(false);
+  if(open){if(this.cinema)this.setCinema(false);this.toggleMap(false);}
 		this.closeDialogue(); this.journalOpen = open;
 		if ( open ) { this.app.game.hud?.closeStand(); this.app.game.hud?.toggleInventory( false ); }
 		this.find( '.exp-journal' ).hidden = ! open;
@@ -131,6 +235,7 @@ export class Exploration {
 		this.app.game.toast( this.read.size === STORIES.length ? 'All coastal stories collected · check your field journal' : 'Story saved to your field journal' );
 	}
 	renderDialogue() {
+		if(this.cinema)this.setCinema(false);
 		const r = this.dialogue;
 		this.find( '.exp-dialog' ).hidden = false;
 		this.find( '.exp-role' ).textContent = r.role;
@@ -187,6 +292,7 @@ export class Exploration {
 
 	beforeUpdate() {
 		const input = this.app.input;
+		if(this.cinema && !this.app.ui?.ui?._photo)this.setCinema(false);
 		this.app.coastalTowns?.syncColliders(this.app.player.position);
         this.app.realCities?.syncColliders(this.app.player.position);
 		const delta=input.consumeTimeScrub();
@@ -253,6 +359,8 @@ export class Exploration {
   this._hudTime += dt;
   if(this._hudTime < .12) return;
   this._hudTime = 0;
+  this.updateNavigation();
+  this.updateMood();
   this.find('.exp-clock-time').textContent=clockLabel(app.settings.timeOfDay);
   this.find('.exp-clock').classList.toggle('is-scrubbing',app.input.down('KeyZ'));
   if(document.activeElement!==this.find('.exp-clock input'))this.find('.exp-clock input').value=app.settings.timeOfDay;
@@ -267,7 +375,7 @@ export class Exploration {
   const dx = targetPosition.x - p.position.x, dz = targetPosition.z - p.position.z;
 		const compass = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
 		const bearing = ( Math.atan2( dx, - dz ) * 180 / Math.PI + 360 ) % 360;
-		this.find( '.exp-objective' ).textContent = `${ this.target.label || this.target.name } · ${ Math.round( Math.hypot( dx, dz ) ) } m ${ compass[ Math.round( bearing / 45 ) % 8 ] }`;
+		this.find( '.exp-objective' ).textContent = `${ this.target.label || this.target.name } · ${ Math.hypot(dx,dz) < 1000 ? `${Math.round(Math.hypot(dx,dz))} m` : `${(Math.hypot(dx,dz)/1000).toFixed(1)} km` } ${ compass[ Math.round( bearing / 45 ) % 8 ] }`;
 		this.modeButtons.forEach(button => { const pressed = String(button.dataset.mode === p.mode && !app.freeCam); if(button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed); });
 		this.find( '.exp-controls' ).textContent = p.mode === 'car' ? `W / S accelerate & reverse · A / D or trackpad steer\n${Math.round(Math.abs(this.traffic.active?.speed||0)*3.6)} km/h · Space drift · Shift boost · E get out` : p.mode === 'plane' ? `Trackpad turns & pitches · A / D also turn\nW / S speed · Shift + W fast cruise · L level\nSpace / C up / down · ${ Math.round( this.plane.speed * 3.6 ) } km/h\nE land & get out` : p.mode === 'boat' ? 'WASD steer & throttle · Shift boost\nE get out · M map & fast travel' : 'WASD walk · Shift run · E enter vehicle / listen\n1 summons boat · 2 takes flight';
 		this.ui.hidden = !! ( app.ui?.ui?._photo || app.ui?.ui?._start || app.ui?.ui?._help || app.game.guide?.open );

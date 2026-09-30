@@ -67,8 +67,26 @@ const FRAME_FIELDS = {
 const CAMERA_FIELDS = [ 'relativeViewProj','prevRelativeViewProj','cameraOrigin','cameraOffset','prevCameraOrigin','prevCameraOffset','view', 'proj', 'viewProj', 'invView', 'invProj', 'invViewProj', 'viewProjNoJitter', 'prevViewProjNoJitter',
 	'cameraPos', 'near', 'prevCameraPos', 'far', 'resolution', 'invResolution', 'jitter', 'reversedDepth' ];
 
+// Every view owns its camera values. Keep them alive across frames: the main view, three shadow
+// cascades and environment faces otherwise create hundreds of temporary math objects per frame.
+function initializeCameraValues( block ) {
+
+	for ( const name of CAMERA_FIELDS ) {
+
+		const field = block.fields[ name ];
+		const type = block.layout[ name ].typeStr;
+		if ( type === 'mat4x4f' ) field.value = new Matrix4();
+		else if ( type === 'vec3f' ) field.value = new Vector3();
+		else if ( type === 'vec2f' ) field.value = new Vector2().copy( field.value );
+
+	}
+
+}
+
 // The main frame block (main camera; also what compute shaders see).
 export const FrameUniforms = new UniformBlock( 'Frame', FRAME_FIELDS, { label: 'frame' } );
+initializeCameraValues( FrameUniforms );
+const SIMULATION_FIELDS = FrameUniforms.order.filter( ( name ) => ! CAMERA_FIELDS.includes( name ) );
 
 setFrameUniforms( FrameUniforms );
 
@@ -78,9 +96,10 @@ setFrameUniforms( FrameUniforms );
 export function createViewUniforms( label ) {
 
 	const block = new UniformBlock( 'Frame', FRAME_FIELDS, { label } );
+	initializeCameraValues( block );
 	block.onBeforePack = () => {
 
-		for ( const k of FrameUniforms.order ) if ( ! CAMERA_FIELDS.includes( k ) ) block.fields[ k ].value = FrameUniforms.fields[ k ].value;
+		for ( const k of SIMULATION_FIELDS ) block.fields[ k ].value = FrameUniforms.fields[ k ].value;
 
 	};
 	return block;
@@ -118,36 +137,36 @@ export function setFrameCamera( camera, width, height, { jitterX = 0, jitterY = 
 
 	const F = block.fields;
 	camera.updateMatrixWorld();
-	if ( camera.matrixWorldInverse ) camera.matrixWorldInverse.copy( camera.matrixWorld ).invert();
 	const view = camera.matrixWorldInverse;
 	const proj = camera.projectionMatrix;
-	F.view.value = view.clone();
-	F.proj.value = proj.clone();
-	const vp = new Matrix4().multiplyMatrices( proj, view );
-	F.viewProjNoJitter.value = vp.clone();
+	// Snapshot history first, including when the caller passes a current field as its history.
+	if ( prevViewProj ) F.prevViewProjNoJitter.value.copy( prevViewProj );
+	if ( prevCameraPos ) F.prevCameraPos.value.copy( prevCameraPos );
+	F.view.value.copy( view );
+	F.proj.value.copy( proj );
+	const vp = F.viewProjNoJitter.value.multiplyMatrices( proj, view );
 	// jitter: translate clip xy by 2 * px / size (times w, so a pre-multiplied translation)
 	const jx = 2 * jitterX / width, jy = 2 * jitterY / height;
 	_m.makeTranslation( jx, jy, 0 );
-	const vpj = new Matrix4().multiplyMatrices( _m, vp );
-	F.viewProj.value = vpj;
-	F.invView.value = camera.matrixWorld.clone();
-	F.invProj.value = proj.clone().invert();
-	F.invViewProj.value = vpj.clone().invert();
-	F.prevViewProjNoJitter.value = prevViewProj ? prevViewProj.clone() : vp.clone();
-	F.cameraPos.value = new Vector3().setFromMatrixPosition( camera.matrixWorld );
-	F.prevCameraPos.value = prevCameraPos ? prevCameraPos.clone() : F.cameraPos.value.clone();
-	const cameraP=F.cameraPos.value,previousP=F.prevCameraPos.value;
- const origin=new Vector3(Math.floor(cameraP.x/1024)*1024,Math.floor(cameraP.y/1024)*1024,Math.floor(cameraP.z/1024)*1024);
- const previousOrigin=new Vector3(Math.floor(previousP.x/1024)*1024,Math.floor(previousP.y/1024)*1024,Math.floor(previousP.z/1024)*1024);
- F.cameraOrigin.value=origin;F.cameraOffset.value=cameraP.clone().sub(origin);
- F.prevCameraOrigin.value=previousOrigin;F.prevCameraOffset.value=previousP.clone().sub(previousOrigin);
- F.relativeViewProj.value=vp.clone().multiply(new Matrix4().makeTranslation(cameraP.x,cameraP.y,cameraP.z));
- F.prevRelativeViewProj.value=F.prevViewProjNoJitter.value.clone().multiply(new Matrix4().makeTranslation(previousP.x,previousP.y,previousP.z));
- F.near.value = camera.near;
+	const vpj = F.viewProj.value.multiplyMatrices( _m, vp );
+	F.invView.value.copy( camera.matrixWorld );
+	F.invProj.value.copy( proj ).invert();
+	F.invViewProj.value.copy( vpj ).invert();
+	if ( ! prevViewProj ) F.prevViewProjNoJitter.value.copy( vp );
+	F.cameraPos.value.setFromMatrixPosition( camera.matrixWorld );
+	if ( ! prevCameraPos ) F.prevCameraPos.value.copy( F.cameraPos.value );
+	const cameraP = F.cameraPos.value, previousP = F.prevCameraPos.value;
+	const origin = F.cameraOrigin.value.set( Math.floor( cameraP.x / 1024 ) * 1024, Math.floor( cameraP.y / 1024 ) * 1024, Math.floor( cameraP.z / 1024 ) * 1024 );
+	const previousOrigin = F.prevCameraOrigin.value.set( Math.floor( previousP.x / 1024 ) * 1024, Math.floor( previousP.y / 1024 ) * 1024, Math.floor( previousP.z / 1024 ) * 1024 );
+	F.cameraOffset.value.copy( cameraP ).sub( origin );
+	F.prevCameraOffset.value.copy( previousP ).sub( previousOrigin );
+	F.relativeViewProj.value.copy( vp ).multiply( _m.makeTranslation( cameraP.x, cameraP.y, cameraP.z ) );
+	F.prevRelativeViewProj.value.copy( F.prevViewProjNoJitter.value ).multiply( _m.makeTranslation( previousP.x, previousP.y, previousP.z ) );
+	F.near.value = camera.near;
 	F.far.value = camera.far;
-	F.resolution.value = new Vector2( width, height );
-	F.invResolution.value = new Vector2( 1 / width, 1 / height );
-	F.jitter.value = new Vector2( jx, jy );
+	F.resolution.value.set( width, height );
+	F.invResolution.value.set( 1 / width, 1 / height );
+	F.jitter.value.set( jx, jy );
 	F.reversedDepth.value = camera.reversedDepth === false ? 0 : 1;
 
 }

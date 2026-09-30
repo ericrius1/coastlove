@@ -2,6 +2,8 @@ import { Vector2, Vector4, Box3, Frustum, Matrix4, Vector3, Sphere } from '../en
 import { InstancedBufferGeometry, BufferAttribute, InstancedBufferAttribute } from '../engine/geometry/index.js';
 import { UniformBlock, ShaderModule } from '../engine/webgpu.js';
 
+const frontToBack = ( a, b ) => a.d - b.d;
+
 // Continuous distance-dependent LOD (Strugar 2010) quadtree grid.
 // A single G x G grid mesh is instanced for every selected node. Vertices near the
 // outer edge of each LOD range geomorph toward the next coarser grid so there are
@@ -158,6 +160,8 @@ fn ${ P }Morph( node: vec4f, grid: vec2f, viewPos: vec3f, y0: f32 ) -> ${ Cap }V
 		this._frustum = new Frustum();
 		this._mat = new Matrix4();
 		this._cam = new Vector3();
+		this._nodePool = [];
+		this._order = [];
 		this.lodCounts = new Array( levels ).fill( 0 );
 
 	}
@@ -182,6 +186,7 @@ fn ${ P }Morph( node: vec4f, grid: vec2f, viewPos: vec3f, y0: f32 ) -> ${ Cap }V
 		camera.getWorldPosition( this._cam );
 
 		this.count = 0;
+		this._order.length = 0;
 		this.lodCounts.fill( 0 );
 
 		const top = this.levels - 1;
@@ -211,31 +216,29 @@ fn ${ P }Morph( node: vec4f, grid: vec2f, viewPos: vec3f, y0: f32 ) -> ${ Cap }V
 
 		// front-to-back order so early depth testing rejects hidden wave faces
 		const n = this.count;
-		const order = this._order || ( this._order = [] );
-		order.length = n;
+		const order = this._order;
 		const arr = this.nodeArray;
-		const c = this._cam;
-		for ( let i = 0; i < n; i ++ ) {
-
-			const s = arr[ i * 4 + 2 ];
-			const dx = Math.max( arr[ i * 4 ] - c.x, 0, c.x - arr[ i * 4 ] - s );
-			const dz = Math.max( arr[ i * 4 + 1 ] - c.z, 0, c.z - arr[ i * 4 + 1 ] - s );
-			order[ i ] = { d: dx * dx + dz * dz, x: arr[ i * 4 ], z: arr[ i * 4 + 1 ], s, l: arr[ i * 4 + 3 ] };
-
-		}
-
-		order.sort( ( a, b ) => a.d - b.d );
+		order.sort( frontToBack );
+		let changed = n !== this.geometry.instanceCount;
 		for ( let i = 0; i < n; i ++ ) {
 
 			const o = order[ i ];
-			arr[ i * 4 ] = o.x; arr[ i * 4 + 1 ] = o.z; arr[ i * 4 + 2 ] = o.s; arr[ i * 4 + 3 ] = o.l;
+			const offset = i * 4;
+			if ( arr[ offset ] !== o.x || arr[ offset + 1 ] !== o.z || arr[ offset + 2 ] !== o.s || arr[ offset + 3 ] !== o.l ) changed = true;
+			arr[ offset ] = o.x; arr[ offset + 1 ] = o.z; arr[ offset + 2 ] = o.s; arr[ offset + 3 ] = o.l;
 
 		}
 
 		this.geometry.instanceCount = this.count;
-		this.nodeAttr.clearUpdateRanges();
-		this.nodeAttr.addUpdateRange( 0, this.count * 4 );
-		this.nodeAttr.needsUpdate = true;
+		// Camera motion does not always change the selected nodes or their order. Keep pending
+		// ranges intact until rendered, and avoid uploading an identical instance buffer every frame.
+		if ( changed && n > 0 ) {
+
+			this.nodeAttr.clearUpdateRanges();
+			this.nodeAttr.addUpdateRange( 0, n * 4 );
+			this.nodeAttr.needsUpdate = true;
+
+		}
 
 	}
 
@@ -271,11 +274,14 @@ fn ${ P }Morph( node: vec4f, grid: vec2f, viewPos: vec3f, y0: f32 ) -> ${ Cap }V
 	_add( x, z, size, lod ) {
 
 		if ( this.count >= this.maxInstances ) return;
-		const o = this.count * 4;
-		this.nodeArray[ o ] = x;
-		this.nodeArray[ o + 1 ] = z;
-		this.nodeArray[ o + 2 ] = size;
-		this.nodeArray[ o + 3 ] = lod;
+		const node = this._nodePool[ this.count ] || ( this._nodePool[ this.count ] = {} );
+		// Match the float32 coordinates sent to the GPU before comparing or sorting nodes.
+		x = Math.fround( x ); z = Math.fround( z ); size = Math.fround( size );
+		const c = this._cam;
+		const dx = Math.max( x - c.x, 0, c.x - x - size );
+		const dz = Math.max( z - c.z, 0, c.z - z - size );
+		node.x = x; node.z = z; node.s = size; node.l = lod; node.d = dx * dx + dz * dz;
+		this._order.push( node );
 		this.count ++;
 		this.lodCounts[ lod ] ++;
 
@@ -295,9 +301,9 @@ fn ${ P }Morph( node: vec4f, grid: vec2f, viewPos: vec3f, y0: f32 ) -> ${ Cap }V
 		}
 
 		const h = size * 0.5;
-		const children = [ [ x, z ], [ x + h, z ], [ x, z + h ], [ x + h, z + h ] ];
-		for ( const [ cx, cz ] of children ) {
+		for ( let i = 0; i < 4; i ++ ) {
 
+			const cx = x + ( i & 1 ) * h, cz = z + ( i >> 1 ) * h;
 			if ( ! this._select( cx, cz, h, lod - 1 ) ) {
 
 				// quadrant outside the finer range: draw it at this node's LOD

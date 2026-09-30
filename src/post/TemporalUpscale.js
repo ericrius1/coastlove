@@ -91,6 +91,16 @@ export class TemporalUpscale {
 
 	}
 
+	// A discontinuous lighting change should not carry the old exposure/color
+	// into the new scene. Keep allocations and reseed from the next beauty pass.
+	reset() {
+
+		this._needsRestart = true;
+		this._hasPrevInvVP = false;
+		this._nextPrev = null;
+
+	}
+
 	setSize( w, h ) {
 
 		const a = this.history[ 0 ].setSize( w, h );

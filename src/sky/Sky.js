@@ -26,6 +26,9 @@ const STAR_SIGMA = 0.1; // star PSF (cells, ~1 px)
 const MW = new Vector3( 0.3, 0.2, 1 ).normalize(); // pole of the Milky Way band
 // reflections spread point sources over rough water: only a trace of the stars survives
 const STAR_REFLECTION = 0.08;
+const MOON_ANGULAR_RADIUS = 0.0048;
+const SUN_CHORD_RADIUS = 2 * Math.sin( SUN_ANGULAR_RADIUS / 2 );
+const MOON_CHORD_RADIUS = 2 * Math.sin( MOON_ANGULAR_RADIUS / 2 );
 
 const f = ( x ) => {
 
@@ -84,9 +87,12 @@ fn skyHash13( p: vec3f ) -> f32 {
 
 // Sun disk radiance along dir (already includes atmospheric transmittance).
 fn skySunDisk( dir: vec3f ) -> vec3f {
-	let cosA = dot( dir, atmosphereParams.sunDir ); // the real sun (frame.sunDir is the moon at night)
-	let ang = acos( clamp( cosA, -1.0, 1.0 ) );
-	let r = ang / ${ f( SUN_ANGULAR_RADIUS ) };
+	// A chord-distance test keeps the tiny disk stable near dot(dir, sun) = 1.
+	// Most pixels never touch the transmittance LUT or evaluate the limb profile.
+	let delta = dir - atmosphereParams.sunDir; // the real sun (frame.sunDir is the moon at night)
+	let r2 = dot( delta, delta ) / ${ f( SUN_CHORD_RADIUS * SUN_CHORD_RADIUS ) };
+	if ( r2 >= 1.0 || dir.y <= -0.02 || skyParams.sunDiskIntensity <= 0.0 ) { return vec3f( 0.0 ); }
+	let r = sqrt( r2 );
 	let mask = smoothstep( 1.0, 0.9, r );
 	let mu = sqrt( max( 1.0 - r * r, 0.0 ) );
 	let limb = 1.0 - 0.6 * ( 1.0 - mu );
@@ -99,6 +105,19 @@ fn skySunDisk( dir: vec3f ) -> vec3f {
 // magnitude distribution (few bright stars, many faint ones), denser along the Milky Way. They
 // come out after civil twilight: the brightest first, the faintest once the sky is fully dark.
 fn skyStars( dir: vec3f ) -> vec3f {
+	if ( dir.y <= 0.0 || skyParams.starIntensity <= 0.001 ) { return vec3f( 0.0 ); }
+	let dark = 1.0 - smoothstep( -0.28, -0.1, atmosphereParams.sunDir.y );
+	let extinction = skyParams.starIntensity * smoothstep( 0.0, 0.2, dir.y );
+	let bx = dot( dir, vec3f( ${ f( MW.x ) }, ${ f( MW.y ) }, ${ f( MW.z ) } ) ) * 4.0;
+	let band = exp( - bx * bx );
+	// Broad stellar clouds and a winding dust lane give the galaxy a quiet sense
+	// of depth. Direction-space structure stays fixed while the camera travels.
+	let stellarCloud = 0.72 + 0.18 * sin( dot( dir, vec3f( 13.0, 4.0, -7.0 ) ) )
+		+ 0.1 * sin( dot( dir, vec3f( 29.0, -8.0, -6.0 ) ) );
+	let dustOffset = 0.12 * sin( dot( dir, vec3f( 5.0, 3.0, -2.0 ) ) );
+	let dustDistance = ( bx + dustOffset ) * 4.5;
+	let dust = 1.0 - exp( - dustDistance * dustDistance ) * 0.58;
+	let glow = vec3f( 0.55, 0.6, 0.75 ) * ( band * stellarCloud * dust * dark * 0.0048 );
 	// cube face coordinates
 	let a = abs( dir );
 	let onX = a.x > a.y && a.x > a.z;
@@ -107,16 +126,17 @@ fn skyStars( dir: vec3f ) -> vec3f {
 	let uv = select( select( dir.xy / a.z, dir.xz / a.y, onY ), dir.yz / a.x, onX ) * ${ f( STAR_CELLS ) };
 	let cell = vec3f( floor( uv ), face );
 	let h = skyHash13( cell );
-	let bx = dot( dir, vec3f( ${ f( MW.x ) }, ${ f( MW.y ) }, ${ f( MW.z ) } ) ) * 4.0;
-	let band = exp( - bx * bx );
 	// the cell holds a star with probability P (higher along the Milky Way); an independent
 	// uniform u ranks its brightness: N( < m ) ~ 10^( m / 2 ), brightest about magnitude -1
 	let has = h < band * 0.035 + 0.025;
+	// Over 94% of cells are empty. Preserve their diffuse galaxy glow while
+	// skipping magnitude, point-spread function, color and scintillation work.
+	if ( ! has ) { return glow * extinction; }
 	let uc = max( skyHash13( cell + 7.7 ), 2e-4 );
 	let m = log2( uc ) * 0.602 + 6.5;
 	// limiting magnitude: -1 when the sun is 6 deg below the horizon, 6.5 below 16 deg
-	let dark = 1.0 - smoothstep( -0.28, -0.1, atmosphereParams.sunDir.y );
-	let vis = smoothstep( m - 0.6, m + 0.6, dark * 7.5 - 1.0 ) * select( 0.0, 1.0, has );
+	let vis = smoothstep( m - 0.6, m + 0.6, dark * 7.5 - 1.0 );
+	if ( vis <= 0.0 ) { return glow * extinction; }
 	// angular distance to the star (isotropic whatever the cube face distortion), in cells
 	let sp = ( floor( uv ) + vec2f( skyHash13( cell + 3.1 ), skyHash13( cell + 5.7 ) ) * 0.4 + 0.3 ) / ${ f( STAR_CELLS ) };
 	let sdir = normalize( select( select( vec3f( sp, sign( dir.z ) ), vec3f( sp.x, sign( dir.y ), sp.y ), onY ), vec3f( sign( dir.x ), sp ), onX ) );
@@ -129,18 +149,33 @@ fn skyStars( dir: vec3f ) -> vec3f {
 	let tw = sin( frame.time * ( skyHash13( cell + 13.3 ) * 9.0 + 5.0 ) + h * 60.0 ) * mix( 0.18, 0.06, sat( dir.y * 2.0 ) ) + 1.0;
 	let col = mix( vec3f( 1.0, 0.8, 0.6 ), vec3f( 0.75, 0.85, 1.0 ), skyHash13( cell + 17.0 ) ) * 0.5 + 0.5;
 	let star = col * ( psf * flux * vis * tw * 0.0075 );
-	// diffuse glow of the Milky Way
-	let glow = vec3f( 0.55, 0.6, 0.75 ) * ( band * dark * 0.0035 );
 	// atmospheric extinction toward the horizon
-	return ( star + glow ) * skyParams.starIntensity * smoothstep( 0.0, 0.2, dir.y );
+	return ( star + glow ) * extinction;
 }
 
 fn skyMoon( dir: vec3f ) -> vec3f {
-	let cosA = dot( dir, skyParams.moonDir );
-	let ang = acos( clamp( cosA, -1.0, 1.0 ) );
-	let r = ang / 0.0048;
+	if ( skyParams.starIntensity <= 0.001 || dir.y <= -0.02 ) { return vec3f( 0.0 ); }
+	let delta = dir - skyParams.moonDir;
+	let r2 = dot( delta, delta ) / ${ f( MOON_CHORD_RADIUS * MOON_CHORD_RADIUS ) };
+	if ( r2 >= 1.0 ) { return vec3f( 0.0 ); }
+	let r = sqrt( r2 );
 	let mask = smoothstep( 1.0, 0.92, r );
-	return vec3f( 0.9, 0.92, 1.0 ) * mask * 3.0 * skyParams.starIntensity * smoothstep( -0.02, 0.02, dir.y );
+	let pole = select( vec3f( 0.0, 1.0, 0.0 ), vec3f( 0.0, 0.0, 1.0 ), abs( skyParams.moonDir.y ) > 0.95 );
+	let right = normalize( cross( pole, skyParams.moonDir ) );
+	let up = cross( skyParams.moonDir, right );
+	let uv = vec2f( dot( dir, right ), dot( dir, up ) ) / ${ f( Math.sin( MOON_ANGULAR_RADIUS ) ) };
+	// Low-frequency maria survive the moon's small screen footprint. The dark
+	// basins and a restrained bright crater replace an otherwise featureless disk.
+	let seaA = 1.0 - smoothstep( 0.65, 1.0, length( ( uv - vec2f( -0.3, 0.27 ) ) * vec2f( 1.75, 2.25 ) ) );
+	let seaB = 1.0 - smoothstep( 0.6, 1.0, length( ( uv - vec2f( 0.22, 0.32 ) ) * vec2f( 2.5, 2.7 ) ) );
+	let seaC = 1.0 - smoothstep( 0.55, 1.0, length( ( uv - vec2f( -0.45, -0.22 ) ) * vec2f( 2.8, 2.3 ) ) );
+	let craterDelta = uv - vec2f( 0.17, -0.58 );
+	let crater = exp( - dot( craterDelta, craterDelta ) * 220.0 );
+	let albedo = 1.0 - max( seaA, max( seaB, seaC ) ) * 0.3 + crater * 0.12;
+	let limb = 0.72 + 0.28 * sqrt( max( 1.0 - r2, 0.0 ) );
+	let T = atmosphereTransmittanceToSpace( dir );
+	return vec3f( 0.9, 0.92, 1.0 ) * T * ( mask * albedo * limb * 3.0 * skyParams.starIntensity )
+		* smoothstep( -0.02, 0.02, dir.y );
 }
 
 // Faint blue-grey moonlit sky (a little brighter toward the horizon) and the moon's aureole.

@@ -30,6 +30,12 @@ The northern woods have taller, layered crowns and drifts of ferns, with younger
 
 **Letters on the tide** begins beside Rowan's bench at Cypress Point. Follow an unaddressed envelope through a bell, painted water, evening light, stars, and a northern dawn. The clues explain where and when to linger; nothing expires. Hold Z and swipe, or use the visible time slider, to borrow a different hour. Remembered places keep a few little lights for your return.
 
+## Light, scenery, and cinema
+
+The browser's **Borrow a little light** card offers Pacific, Golden, Dawn, and Moonlight moods. Each combines the physical time of day with cloud cover, coastal haze, light shafts, bloom, and restrained color grading. The time slider still lets you choose any hour. **Effects → Coastal color** adjusts the new cool-shade / warm-highlight grade, including a neutral setting at zero. Moods preserve your picture quality and draw distances; optional `?mood=golden` (or `pacific`, `dawn`, `moonlight`) starts in a chosen light.
+
+A compact travel card now shows your nearest destination and camera bearing. Open **Journey & controls** for guidance and progress. **Cinema / F10** clears the interface; F10, Escape, or the return button brings it back. Tab reveals and focuses the return button. The original **P** photo mode remains available. Moonlight includes subtle lunar surface detail and structure in the Milky Way.
+
 ## Controls
 
 | Control | Action |
@@ -46,6 +52,7 @@ The northern woods have taller, layered crowns and drifts of ferns, with younger
 | **F (map open)** | Center and zoom to your current location |
 | **Map drag / scroll or pinch** | Pan / zoom beneath the pointer; arrows and +/− also work |
 | **J** | Field notes, stories and picture quality |
+| **F10** | Cinema view; F10 or Escape restores controls |
 | **Hold Z + trackpad swipe** | Scrub time forward or backward |
 | **WASD / Shift on foot** | Walk / run |
 | **V / T / R / I / F1** | Boat camera / day cycle / fishing rod / inventory / full controls |
@@ -61,6 +68,8 @@ The default preserves native picture resolution, 2048-pixel shadows and long ter
 A bounded 2048² statewide atlas and one moving 4 km ground patch replace area-proportional allocations. Nearby ground detail and building cells stream around the player. Terrain visibility bounds are cached; building shadows and collision geometry are local; taller buildings retain distant silhouettes. Grass, pebbles, traffic and wildlife have fixed nearby budgets. Camera-relative rendering avoids sky and geometry precision problems hundreds of kilometres from the origin.
 
 The streamed vegetation budget stays at 6,500 trees and 14,000 shrubs, with up to 4,800 ferns. Nearby spatial cells supply distant crowns and palms; distant plants no longer upload across the whole state when you move a few metres. Wildlife sleeps outside its viewing range and reduces terrain work at a distance. Habitat audio samples nearby canopy, releases silent loops, limits voices, and skips shoreline work when the surf is inaudible. Listener movement remains accurate at statewide coordinates.
+
+Browser geometry updates now upload only changed ranges, with correct alignment for packed attributes. Camera uniforms and terrain/ocean LOD records reuse their storage, and unchanged LOD selections skip GPU uploads. The moving terrain patch reuses exactly aligned heights and interior normals: a 768 m shift of the 4 km patch avoids 81.25% of height queries. Two reusable staging buffers keep publication atomic; edits and teleports rebuild the affected samples. These are reductions in work, not a claim of a fixed frame rate.
 
 First launch compiles WebGPU shaders and can take a few minutes. The full static data is committed for GitHub Pages; only nearby building cells are fetched and meshed during play. Frame rate depends on viewport, picture quality and scene density; no claim of a locked frame rate across the state is made.
 
@@ -82,6 +91,7 @@ npm run test:controls
 npm run test:metric
 npm run test:water
 npm run test:nature
+node test/sky-radiance.mjs
 npm run build
 ```
 

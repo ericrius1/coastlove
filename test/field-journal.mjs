@@ -68,7 +68,7 @@ function makeApp() {
 	const messages = [], preparations = [], audio = [];
 	return { scene: {}, terrainData: { size: 2097152, heightAt: () => 10 }, colliders: null,
 		player: { position: new Vector3(950, 10, -900), mode: 'walk', velocity: new Vector3(), busy: false },
-		settings: { timeOfDay: 16.2, timeSpeed: 1 }, input, freeCam: false, ui: { ui: {} },
+		settings: { timeOfDay: 16.2, timeSpeed: 1 }, input, freeCam: false, ui: { ui: { _photo: false, setPhotoMode(on) { this._photo = on; } } },
 		game: { toast: message => messages.push(message), rod: { equipped: false }, guide: { open: false },
 			hud: { closeStand() {}, toggleInventory() {} } },
 		realCities: { async prepare(place) { preparations.push(place); }, update() {}, syncColliders() {} },
@@ -202,6 +202,38 @@ e.find('.exp-quality select').querySelector('[value=".65"]').selected = true;
 e.find('.exp-quality select').dispatchEvent(new window.Event('change'));
 assert.equal(app.renderScale, .65);
 console.log('ok E/J ordering, Escape, map exclusivity, letter shortcut, time slider and quality controls');
+
+// New scenic controls share the existing photo mode and preserve journal/atlas capture.
+const scenicKey = code => {
+	const event = new window.Event('keydown', {cancelable: true});
+	event.code = code; window.dispatchEvent(event); return event;
+};
+e.toggleJournal(true);
+const f10 = scenicKey('F10');
+assert.equal(f10.defaultPrevented, true);
+assert.equal(e.cinema, true); assert.equal(app.ui.ui._photo, true);
+assert.equal(e.journalOpen, false); assert.equal(e.map.open, false);
+assert.equal(app.input.captured, false); assert.equal(e.paused, false, 'cinema leaves exploration active');
+assert.equal(e.cinemaReturn.hidden, false);
+scenicKey('Escape');
+assert.equal(e.cinema, false); assert.equal(app.ui.ui._photo, false); assert.equal(e.cinemaReturn.hidden, true);
+click(e.find('.exp-cinema-button')); e.toggleJournal(true);
+assert.equal(e.cinema, false); assert.equal(e.journalOpen, true, 'field notes restore a readable interface');
+click(e.find('.exp-cinema-button')); app.ui.ui.setPhotoMode(false); e.beforeUpdate();
+assert.equal(e.cinema, false, 'the existing P photo-mode exit also restores cinema controls');
+click(e.find('.exp-cinema-button')); document.dispatchEvent(new window.Event('pointerlockchange'));
+assert.equal(e.cinema, false, 'browser-reserved Escape restores controls when pointer lock releases');
+for (const [id, hour] of [['pacific', 16.2], ['golden', 17.6], ['dawn', 6.4], ['moonlight', 22]]) {
+	click(e.ui.querySelector(`[data-mood="${id}"]`));
+	assert.equal(app.settings.timeOfDay, hour); assert.equal(app.settings.timeSpeed, 0);
+	assert.equal(e.ui.querySelectorAll('[data-mood][aria-pressed="true"]').length, 1);
+	assert.equal(e.ui.querySelector(`[data-mood="${id}"]`).getAttribute('aria-pressed'), 'true');
+}
+app.camera = { getWorldDirection: direction => direction.set(1, 0, 0) };
+e.updateNavigation(); assert.equal(e.find('.exp-bearing-value').textContent, 'E · 090°');
+app.camera.getWorldDirection = direction => direction.set(0, 0, -1);
+e.updateNavigation(); assert.equal(e.find('.exp-bearing-value').textContent, 'N · 000°');
+console.log('ok F10/Escape/click cinema, pointer-lock restoration, P compatibility, four moods and geographic camera bearings');
 
 // Run Exploration.update with the real progress engine and HUD. The heavy world
 // dependencies remain test doubles, while all gating and save paths execute.

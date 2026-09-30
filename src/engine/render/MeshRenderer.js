@@ -159,15 +159,29 @@ export class MeshRenderer {
 
 		}
 
-		if ( b.version !== version ) {
+		if ( b.version !== version || b.array !== src.array ) {
 
-			const range = src.updateRanges && src.updateRanges.length && b.version >= 0 ? src.updateRanges : null;
-			if ( range && conv.array === src.array ) {
+			const range = src.updateRanges && src.updateRanges.length && b.version >= 0 && b.array === src.array ? src.updateRanges : null;
+			if ( range && conv === src.array ) {
 
 				const bpe = src.array.BYTES_PER_ELEMENT;
-				for ( const r of range ) GPU.queue.writeBuffer( b.buffer, r.start * bpe, src.array.buffer, src.array.byteOffset + r.start * bpe, align4( r.count * bpe ) );
-				if ( src.clearUpdateRanges ) src.clearUpdateRanges();
-				else src.updateRanges.length = 0;
+				for ( const r of range ) {
+
+					// WebGPU requires aligned destination offsets and byte counts, even for packed
+					// 8/16-bit attributes. Include neighboring components and pad only the final word.
+					const start = Math.max( 0, Math.floor( r.start * bpe / 4 ) * 4 );
+					const end = Math.min( align4( src.array.byteLength ), align4( ( r.start + r.count ) * bpe ) );
+					if ( r.count <= 0 || end <= start ) continue;
+					if ( end <= src.array.byteLength ) GPU.queue.writeBuffer( b.buffer, start, src.array.buffer, src.array.byteOffset + start, end - start );
+					else {
+
+						const tail = new Uint8Array( end - start );
+						tail.set( new Uint8Array( src.array.buffer, src.array.byteOffset + start, src.array.byteLength - start ) );
+						GPU.queue.writeBuffer( b.buffer, start, tail );
+
+					}
+
+				}
 
 			} else {
 
@@ -175,6 +189,8 @@ export class MeshRenderer {
 
 			}
 
+			if ( src.clearUpdateRanges ) src.clearUpdateRanges();
+			else if ( src.updateRanges ) src.updateRanges.length = 0;
 			b.version = version;
 
 		}
@@ -199,7 +215,7 @@ export class MeshRenderer {
 
 		}
 
-		if ( g.indexVersion !== ( index.version ?? 0 ) ) {
+		if ( g.indexVersion !== ( index.version ?? 0 ) || g.indexSrc !== index.array ) {
 
 			writePadded( g.index.buffer, arr );
 			g.indexVersion = index.version ?? 0;
@@ -392,7 +408,7 @@ export class MeshRenderer {
 
 			camera.updateMatrixWorld();
 			_vp.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse.copy( camera.matrixWorld ).invert() );
-			_frustum.setFromProjectionMatrix( _vp, camera.reversedDepth !== false );
+			_frustum.setFromProjectionMatrix( _vp, camera.coordinateSystem, camera.reversedDepth !== false );
 			_camPos.setFromMatrixPosition( camera.matrixWorld );
 
 		}
@@ -644,12 +660,12 @@ function convertArray( attr ) {
 	const f = vertexFormat( attr );
 	if ( ! f.converted ) return src.array;
 	let c = _convCache.get( src );
-	if ( c && c.version === src.version ) return c.array;
+	if ( c && c.version === src.version && c.source === src.array ) return c.array;
 	const n = attr.count, k = attr.itemSize;
 	const out = new Float32Array( n * k );
 	const div = attr.normalized ? normDiv( src.array ) : 1;
 	for ( let i = 0; i < n * k; i ++ ) out[ i ] = src.array[ i ] / div;
-	_convCache.set( src, { version: src.version, array: out } );
+	_convCache.set( src, { version: src.version, source: src.array, array: out } );
 	return out;
 
 }

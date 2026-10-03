@@ -49,6 +49,7 @@ export class Exploration {
    <div class="exp-card-heading"><div><div class="exp-eyebrow"><svg width="23" height="12" viewBox="0 0 23 12" fill="none" aria-hidden="true"><path d="M1 4c4-5 7 5 11 0s7 5 10 0M1 9c4-5 7 5 11 0s7 5 10 0" stroke="currentColor" stroke-width="1.2"/></svg> COASTLOVE</div><h1 class="exp-location">Along the Pacific</h1><p class="exp-location-detail">California, at your own pace.</p></div>
    <div class="exp-bearing" aria-label="Camera bearing"><svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="19" fill="none" stroke="currentColor" stroke-opacity=".25"/><path d="M23 2v5M23 39v5M2 23h5M39 23h5" stroke="currentColor" stroke-opacity=".5"/><g class="exp-bearing-needle"><path d="m23 9 4 14-4-2-4 2Z" fill="currentColor"/><path d="m23 37-4-14 4 2 4-2Z" fill="currentColor" opacity=".25"/></g><circle cx="23" cy="23" r="2" fill="currentColor"/></svg><span class="exp-bearing-value">N · 000°</span></div></div>
    <div class="exp-vehicles" aria-label="Travel modes"><button data-mode="boat"><kbd>1</kbd> Boat</button><button data-mode="plane"><kbd>2</kbd> Fly</button><button data-mode="walk"><kbd>3</kbd> Walk</button><button data-mode="car"><kbd>4</kbd> Drive</button></div>
+   <div class="exp-car-magic" hidden><div class="exp-car-views" aria-label="Car camera"><button data-car-view="exterior" aria-pressed="true">Exterior</button><button data-car-view="driver" aria-pressed="false" aria-keyshortcuts="V">Driver’s seat <kbd>V</kbd></button></div><button class="exp-flight-button" aria-keyshortcuts="F" aria-pressed="false"><span>Magic flight</span> <kbd>F</kbd></button><small class="exp-flight-status"></small></div>
    <p class="exp-objective"></p>
    <nav class="exp-actions" aria-label="Explore the coast"><button class="exp-map-button" aria-keyshortcuts="M">Atlas <kbd>M</kbd></button><button class="exp-journal-button" aria-keyshortcuts="J">Field notes <kbd>J</kbd></button><button class="exp-cinema-button" aria-keyshortcuts="F10" title="Hide all controls. Press F10 or Escape to return.">Cinema <kbd>F10</kbd></button></nav>
    <details class="exp-journey"><summary>Journey & controls <span>Take the long way.</span></summary><p class="exp-controls"></p><button class="exp-car-stop">Coastal drive · find a car <kbd>E</kbd></button><div class="exp-divider"></div><div class="exp-progress"></div><button class="exp-letters-button">Letters on the tide <span>0 / 6</span></button></details>
@@ -103,6 +104,8 @@ export class Exploration {
 		this.ui.querySelectorAll( '[data-mode]' ).forEach( button => button.onclick = () => this.switchMode( button.dataset.mode ) );
 		this.find('.exp-region-filter').onchange=()=>this.refresh();
 		this.find('.exp-car-stop').onclick=()=>this.visitCarStop();
+  this.find('.exp-flight-button').onclick=event=>{this.traffic.toggleFlight();event.currentTarget.blur();};
+  this.ui.querySelectorAll('[data-car-view]').forEach(button=>button.onclick=()=>{if(this.traffic.cameraMode!==button.dataset.carView)this.traffic.toggleCamera();button.blur();this._hudTime=1;});
 		this.find('.exp-map-button').onclick=()=>this.toggleMap();
 		this.find( '.exp-journal-button' ).onclick = () => this.toggleJournal();
 		this.find( '.exp-journal-close' ).onclick = () => this.toggleJournal( false );
@@ -305,6 +308,8 @@ export class Exploration {
   if(this.map.open)return;
 		for ( const [ key, mode ] of [ [ 1, 'boat' ], [ 2, 'plane' ], [ 3, 'walk' ], [ 4, 'car' ] ] ) if ( input.hit( `Digit${ key }` ) || input.hit( `Numpad${ key }` ) ) this.switchMode( mode );
   if(input.hit('KeyE')&&this.vehicles.interact())input.pressed.delete('KeyE');
+  if(input.hit('KeyF')&&this.traffic.toggleFlight())input.pressed.delete('KeyF');
+  if(input.hit('KeyV')&&this.traffic.toggleCamera())input.pressed.delete('KeyV');
 	}
 
 	discover(place){if(this.found.has(place.id))return;this.found.add(place.id);this.save();this.app.game.toast('Discovered · '+place.label);}
@@ -377,7 +382,14 @@ export class Exploration {
 		const bearing = ( Math.atan2( dx, - dz ) * 180 / Math.PI + 360 ) % 360;
 		this.find( '.exp-objective' ).textContent = `${ this.target.label || this.target.name } · ${ Math.hypot(dx,dz) < 1000 ? `${Math.round(Math.hypot(dx,dz))} m` : `${(Math.hypot(dx,dz)/1000).toFixed(1)} km` } ${ compass[ Math.round( bearing / 45 ) % 8 ] }`;
 		this.modeButtons.forEach(button => { const pressed = String(button.dataset.mode === p.mode && !app.freeCam); if(button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed); });
-		this.find( '.exp-controls' ).textContent = p.mode === 'car' ? `W / S accelerate & reverse · A / D or trackpad steer\n${Math.round(Math.abs(this.traffic.active?.speed||0)*3.6)} km/h · Space drift · Shift boost · E get out` : p.mode === 'plane' ? `Trackpad turns & pitches · A / D also turn\nW / S speed · Shift + W fast cruise · L level\nSpace / C up / down · ${ Math.round( this.plane.speed * 3.6 ) } km/h\nE land & get out` : p.mode === 'boat' ? 'WASD steer & throttle · Shift boost\nE get out · M map & fast travel' : 'WASD walk · Shift run · E enter vehicle / listen\n1 summons boat · 2 takes flight';
+  const car=this.traffic.active,flight=car?.flight;
+  this.find('.exp-car-magic').hidden=p.mode!=='car';
+  this.find('.exp-car-views').hidden=!car?.cockpit;
+  this.ui.querySelectorAll('[data-car-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.carView===this.traffic.cameraMode)));
+  this.find('.exp-flight-button span').textContent=flight?.phase==='landing'?'Return to flight':flight?'Land the car':'Magic flight · take off';
+  this.find('.exp-flight-button').setAttribute('aria-pressed',String(!!flight));
+  this.find('.exp-flight-status').textContent=flight?flight.phase==='landing'?'Floating down · E land & get out':`${Math.round(Math.abs(car.speed)*3.6)} km/h · ${Math.round(Math.max(0,car.position.y-app.terrainData.heightAt(car.position.x,car.position.z)))} m up · Space ↑ / C ↓`:'Every car is enchanted · drive, then fly';
+		this.find( '.exp-controls' ).textContent = p.mode === 'car' ? `W / S accelerate & reverse · A / D or trackpad steer\n${Math.round(Math.abs(car?.speed||0)*3.6)} km/h · Shift boost\n${car?.cockpit?'V exterior / driver · right-drag look around\n':''}${flight?'Space / C rise & descend · F land · E land & get out':'Space drift · F magic flight · E get out'}` : p.mode === 'plane' ? `Trackpad turns & pitches · A / D also turn\nW / S speed · Shift + W fast cruise · L level\nSpace / C up / down · ${ Math.round( this.plane.speed * 3.6 ) } km/h\nE land & get out` : p.mode === 'boat' ? 'WASD steer & throttle · Shift boost\nE get out · M map & fast travel' : 'WASD walk · Shift run · E enter vehicle / listen\n1 summons boat · 2 takes flight · 4 calls a magic car';
 		this.ui.hidden = !! ( app.ui?.ui?._photo || app.ui?.ui?._start || app.ui?.ui?._help || app.game.guide?.open );
 	}
 }

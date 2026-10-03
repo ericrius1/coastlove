@@ -2,6 +2,7 @@ import { Group, Mesh, Vector3 } from '../engine/index.js';
 import { prepare, mergePrepared, sphere, cylinder, mat4, rod } from '../world/boat/GeoKit.js';
 import { createPropMaterial } from '../game/GameMaterials.js';
 import { Vendor } from '../game/Vendor.js';
+import { describeCharacter, CHARACTER_LIMITS } from '../game/CharacterVariants.js';
 import { mulberry32 } from '../util/Noise.js';
 import { findSafeSpot, safeAt } from './Navigation.js';
 
@@ -63,6 +64,9 @@ export class IslandLife {
 		this.placementClear = placementClear;
 		this.random = mulberry32( 8304 );
 		this.time = 0;
+		this.loadCharacters = loadCharacters;
+		this._characterClock = 0;
+		this._characterCandidates = [];
 		this.residents = (california ? CALIFORNIA_STORIES : STORIES).map( ( story ) => {
 			let x=story.x,z=story.z;
    if(story.site&&terrain.streets?.inCity(x,z)){
@@ -70,19 +74,17 @@ export class IslandLife {
    }else if(story.site){x+=12;z+=8;}
    const position = findSafeSpot( terrain, colliders, x, z, false, 180 );
 			if ( ! position ) throw new Error( `No safe home for ${ story.name }` );
-			const vendor = new Vendor( { name: story.name, position, radius: 4, look: { shirt: story.color, apron: story.color } } );
+			const appearance = describeCharacter( story );
+			const vendor = new Vendor( { name: story.name, position, radius: 4, appearance } );
+			vendor.configureCharacter( { talk: appearance.body === 'marta' ? 'gestic_talk_neutral_01' : 'gestic_talk_relaxed_01' } );
 			scene.add( vendor.group );
-			return { ...story, vendor, position, home: position.clone(), phase: this.random() * 6.28 };
+			return { ...story, appearance, vendor, position, home: position.clone(), phase: this.random() * 6.28 };
 		} );
-		// Reuse Tidewater's credited Rocketbox characters, with procedural figures
-		// retained as a fallback if an asset cannot load.
-		this.ready = loadCharacters ? Promise.all( this.residents.map( async r => {
-			if(r.procedural)return;
-			const female = r.id === 'ines' || r.id === 'sana';
-			const url = ( import.meta.env?.BASE_URL || '/' ) + `models/characters/${ female ? 'marta' : 'joe' }.glb`;
-			try { await r.vendor.loadCharacter( url, { talk: female ? 'gestic_talk_neutral_01' : 'gestic_talk_relaxed_01' } ); }
-			catch ( error ) { console.warn( `Using fallback character for ${ r.name }`, error ); }
-		} ) ) : Promise.resolve();
+		// Residency starts once the player's location is known. Distant named
+		// residents (including procedural settlements) no longer download models
+		// or block startup; every one is eligible for the same nearby detail.
+		this.ready = Promise.resolve();
+
 		const material = createPropMaterial( 'islandAnimals' );
 		material.underwaterLighting = 'lite';
 		const geometries = { fox: animalGeometry('fox'), seaLion: animalGeometry('seaLion'), goat: animalGeometry( 'goat' ), tortoise: animalGeometry( 'tortoise' ) };
@@ -136,6 +138,11 @@ export class IslandLife {
 		// A resumed background tab must not launch wildlife through a hillside.
 		dt = Math.max( 0, Math.min( Number.isFinite( dt ) ? dt : 0, 0.1 ) );
 		this.time += dt;
+		this._characterClock -= dt;
+		if ( this.loadCharacters && this._characterClock <= 0 ) {
+			this._characterClock = 0.25;
+			this.updateCharacters( player.position, talkingId );
+		}
 		for ( const r of this.residents ) {
 			const distance = r.position.distanceTo(player.position);
 			r.vendor.group.visible = distance < 500;
@@ -152,6 +159,21 @@ export class IslandLife {
 			r.vendor.update( dt, player.position );
 		}
 		for ( const animal of this.animals ) this.updateAnimal( animal, dt, player );
+	}
+
+	updateCharacters( position, talkingId = null ) {
+		const candidates = this._characterCandidates;
+		candidates.length = 0;
+		for ( const resident of this.residents ) {
+			const distanceSq = resident.position.distanceToSquared( position );
+			const radius = resident.vendor.character ? CHARACTER_LIMITS.retainDistance : CHARACTER_LIMITS.loadDistance;
+			if ( distanceSq < radius * radius ) candidates.push( { resident, distanceSq, talking: resident.id === talkingId } );
+		}
+		candidates.sort( ( a, b ) => Number( b.talking ) - Number( a.talking ) || a.distanceSq - b.distanceSq );
+		const selected = new Set( candidates.slice( 0, CHARACTER_LIMITS.detailed ).map( entry => entry.resident ) );
+		// Release first so a teleport can immediately reuse existing rig slots.
+		for ( const resident of this.residents ) if ( ! selected.has( resident ) ) resident.vendor.setCharacterDetail( false );
+		for ( const { resident } of candidates.slice( 0, CHARACTER_LIMITS.detailed ) ) resident.vendor.setCharacterDetail( true );
 	}
 
 	updateAnimal( animal, dt, player ) {

@@ -209,6 +209,7 @@ ${ taps }
 		this._inH = 0;
 		this._prevVP = new Matrix4();
 		this._prevCamPos = new Vector3();
+		this._prevJitter = new Vector2();
 		this._hasPrev = false;
 		this._size = new Vector2();
 		this._built = false;
@@ -633,11 +634,13 @@ fn fragment( in: FSIn ) -> vec4f {
 			jitterX: - jx, jitterY: jy,
 			prevViewProj: this._hasPrev ? this._prevVP : null,
 			prevCameraPos: this._hasPrev ? this._prevCamPos : null,
+			prevJitter: this._hasPrev ? this._prevJitter : null,
 		} );
 		const F = FrameUniforms.fields;
 		F.outputResolution.value.set( this._outW, this._outH );
 		this._prevVP.copy( F.viewProjNoJitter.value );
 		this._prevCamPos.copy( F.cameraPos.value );
+		this._prevJitter.copy( F.jitter.value );
 		this._hasPrev = true;
 
 	}

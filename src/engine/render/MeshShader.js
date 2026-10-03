@@ -107,6 +107,8 @@ struct Draw {
 	prevModel: mat4x4f,
 	params: vec4f,  // x: object id, y: user, z: user, w: user
 	params2: vec4f,
+	modelOffset: vec4f, // low part of model translation, before camera-relative projection
+	prevModelOffset: vec4f,
 };
 @group( 2 ) @binding( 0 ) var<uniform> draw: Draw;
 
@@ -190,13 +192,21 @@ ${ fetch }#if !HAS_POSITION
 	o.uv = v.uv;
 	o.color = v.color;
 	var relative=(wp-frame.cameraOrigin)-frame.cameraOffset;
- if(!v.useWorld){relative=(v.model*vec4f(v.position,0.0)).xyz+(v.model[3].xyz-frame.cameraOrigin)-frame.cameraOffset+v.worldOffset;}
+ // Explicit fma keeps GPU fast-math from regrouping the large translations
+ // with tiny face/attachment coordinates before the origins cancel.
+ if(!v.useWorld){
+  let translation=fma(vec3f(-1.0),frame.cameraOrigin,v.model[3].xyz)+fma(vec3f(-1.0),frame.cameraOffset,draw.modelOffset.xyz);
+  relative=fma(v.model[0].xyz,vec3f(v.position.x),fma(v.model[1].xyz,vec3f(v.position.y),fma(v.model[2].xyz,vec3f(v.position.z),translation)))+v.worldOffset;
+ }
  let relativeClip=frame.relativeViewProj*vec4f(relative,1.0);
  o.clip=relativeClip+vec4f(frame.jitter*relativeClip.w,0.0,0.0);
 #if PASS_MAIN
 	o.curClip=relativeClip;
  var previousRelative=(pwp-frame.prevCameraOrigin)-frame.prevCameraOffset;
- if(!v.useWorld){previousRelative=(v.prevModel*vec4f(v.position,0.0)).xyz+(v.prevModel[3].xyz-frame.prevCameraOrigin)-frame.prevCameraOffset+select(v.prevWorldOffset,v.worldOffset,v.prevWorldOffset.x>1e29);}
+ if(!v.useWorld){
+  let translation=fma(vec3f(-1.0),frame.prevCameraOrigin,v.prevModel[3].xyz)+fma(vec3f(-1.0),frame.prevCameraOffset,draw.prevModelOffset.xyz);
+  previousRelative=fma(v.prevModel[0].xyz,vec3f(v.position.x),fma(v.prevModel[1].xyz,vec3f(v.position.y),fma(v.prevModel[2].xyz,vec3f(v.position.z),translation)))+select(v.prevWorldOffset,v.worldOffset,v.prevWorldOffset.x>1e29);
+ }
  o.prevClip=frame.prevRelativeViewProj*vec4f(previousRelative,1.0);
 #endif
 	return o;

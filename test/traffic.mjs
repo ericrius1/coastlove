@@ -24,10 +24,10 @@ for(const c of traffic.cars)assert.ok(travel[c.id]>4000,`${c.name} keeps circula
 for(const c of traffic.cars){assert.ok(c.position.distanceTo(positions[c.id])>20,`${c.name} patrols`);assert.ok(terrain.heightAt(c.position.x,c.position.z)>1.8);assert.ok(traffic.route.nearest(c.position.x,c.position.z).distance<6,`${c.name} keeps its lane`);}
 console.log('ok all sixteen NPC cars patrol for ten simulated minutes without leaving the road');
 const car=traffic.cars[0];player.position.copy(car.position).add(new Vector3(0,0,-4));car.speed=0;
-assert.ok(traffic.enter(car));assert.equal(player.mode,'car');assert.equal(car.driver.position.x,-.4);assert.ok(car.playerDriver.visible);
+assert.ok(traffic.enter(car));assert.equal(player.mode,'car');assert.equal(car.driver.position.x,-car.driverX);assert.ok(car.playerDriver.visible);
 keys.add('KeyW');for(let i=0;i<100;i++)traffic.update(1/60);keys.clear();assert.ok(car.speed>4,'player can accelerate');
 const speedBefore=Math.abs(car.speed);keys.add('Space');for(let i=0;i<60;i++)traffic.update(1/60);keys.clear();assert.ok(Math.abs(car.speed)<speedBefore,'handbrake reduces speed for drifting');
-assert.ok(traffic.exit());assert.equal(player.mode,'walk');assert.equal(traffic.active,null);assert.equal(car.driver.position.x,.4);assert.ok(safeAt(terrain,colliders,player.position.x,player.position.z),'exit stays on clear dry ground');
+assert.ok(traffic.exit());assert.equal(player.mode,'walk');assert.equal(traffic.active,null);assert.equal(car.driver.position.x,car.driverX);assert.ok(safeAt(terrain,colliders,player.position.x,player.position.z),'exit stays on clear dry ground');
 player.position.set(0,10,-900);const departed=car.position.clone();for(let i=0;i<60*8;i++)traffic.update(1/60);assert.ok(car.position.distanceTo(departed)>8,'NPC resumes after exit');
 console.log('ok takeover, accelerator, brake, safe exit, NPC resumes');
 // A stopped player and a building both block a car, including at high speed.

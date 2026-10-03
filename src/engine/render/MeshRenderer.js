@@ -30,7 +30,7 @@ const _layouts = new WeakMap();
 let _listToken = 0; // one per drawItems call (see BindingSet.getBindGroup)
 
 const DRAW_STRIDE = 256; // minUniformBufferOffsetAlignment
-const DRAW_FLOATS = 40;
+const DRAW_FLOATS = 48;
 
 export class MeshRenderer {
 
@@ -92,21 +92,27 @@ export class MeshRenderer {
 	_slot( obj ) {
 
 		let g = obj.__draw;
-		if ( ! g ) g = obj.__draw = { frame: - 1, slot: 0, cur: new Float32Array( 16 ), prev: new Float32Array( 16 ), has: false };
+		if ( ! g ) g = obj.__draw = { frame: - 1, slot: 0, cur: new Float32Array( 16 ), prev: new Float32Array( 16 ), curOffset: new Float32Array( 4 ), prevOffset: new Float32Array( 4 ), has: false };
 		if ( g.frame === GPU.frame ) return g.slot;
 		if ( this.drawCount >= this.capacity ) throw new Error( 'MeshRenderer: draw buffer full' );
 		g.frame = GPU.frame;
 		g.slot = this.drawCount ++;
 		const e = obj.matrixWorld.elements;
-		if ( g.has && ! obj.resetVelocity ) g.prev.set( g.cur );
-		else g.prev.set( e );
+		const keepPrevious = g.has && ! obj.resetVelocity;
+		if ( keepPrevious ) { g.prev.set( g.cur ); g.prevOffset.set( g.curOffset ); }
 		g.cur.set( e );
+		// Keep centimetre-scale attachment/motion precision hundreds of kilometres
+		// away. The residual fits in the existing 256-byte per-draw allocation.
+		for ( let i = 0; i < 3; i ++ ) g.curOffset[ i ] = e[ 12 + i ] - g.cur[ 12 + i ];
+		if ( ! keepPrevious ) { g.prev.set( g.cur ); g.prevOffset.set( g.curOffset ); }
 		g.has = true;
 		obj.resetVelocity = false;
 		const o = g.slot * DRAW_STRIDE / 4;
 		const d = this.drawData;
 		d.set( g.cur, o );
 		d.set( obj.staticVelocity ? g.cur : g.prev, o + 16 );
+		d.set( g.curOffset, o + 40 );
+		d.set( obj.staticVelocity ? g.curOffset : g.prevOffset, o + 44 );
 		const p = obj.drawParams;
 		d[ o + 32 ] = obj.id ?? 0;
 		d[ o + 33 ] = p ? p[ 0 ] : 0;

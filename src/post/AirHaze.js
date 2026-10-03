@@ -62,7 +62,7 @@ fn sunShadowHard( P: vec3f ) -> f32 {
 	let dist = dot( P - frame.cameraPos, - vec3f( frame.view[ 0 ][ 2 ], frame.view[ 1 ][ 2 ], frame.view[ 2 ][ 2 ] ) );
 	let c = shadowCascadeOf( dist );
 	if ( c < 0 ) { return 1.0; }
-	let sc = shadowParams.matrices[ c ] * vec4f( P, 1.0 );
+	let sc = shadowClip( P, vec3f( 0.0 ), c );
 	let uvz = vec3f( sc.x * 0.5 + 0.5, 0.5 - sc.y * 0.5, sc.z );
 	if ( any( uvz.xy < vec2f( 0.0 ) ) || any( uvz.xy > vec2f( 1.0 ) ) || uvz.z > 1.0 ) { return 1.0; }
 	return select( 1.0, 0.0, _shadowDepth( uvz.xy, c ) < uvz.z - 2e-5 );

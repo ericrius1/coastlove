@@ -80,6 +80,7 @@ export const MAX_CASCADES = 4;
 
 export const ShadowUniforms = new UniformBlock( 'SunShadow', {
 	matrices: [ 'mat4x4f[4]', [ new Matrix4(), new Matrix4(), new Matrix4(), new Matrix4() ] ],
+	origins: [ 'vec4f[4]', [ new Vector4(), new Vector4(), new Vector4(), new Vector4() ] ],
 	// per cascade: x = far split (view distance), y = texel size (world m), z = normal bias (m), w = depth range (m)
 	cascades: [ 'vec4f[4]', [ new Vector4(), new Vector4(), new Vector4(), new Vector4() ] ],
 	count: [ 'u32', 0 ],
@@ -118,6 +119,11 @@ fn shadowCascadeOf( viewDist: f32 ) -> i32 {
 	return -1;
 }
 
+// Keep the small shadow transform and normal offset out of absolute statewide coordinates.
+fn shadowClip( P: vec3f, offset: vec3f, c: i32 ) -> vec4f {
+	return shadowParams.matrices[ c ] * vec4f( ( P - shadowParams.origins[ c ].xyz ) + offset, 1.0 );
+}
+
 fn _shadowTap( uv: vec2f, layer: i32, z: f32 ) -> f32 {
 	return textureSampleCompareLevel( sunShadowMap, smpShadow, uv, layer, z );
 }
@@ -149,10 +155,9 @@ fn sunShadowCascade( P: vec3f, N: vec3f, c: i32, noise: f32, pcfNoise: f32 ) -> 
 // pcss = false: the 5-tap PCF filter in every cascade (no blocker search)
 fn _sunShadowCascade( P: vec3f, N: vec3f, c: i32, noise: f32, pcfNoise: f32, pcss: bool ) -> f32 {
 	let info = shadowParams.cascades[ c ];
-	let Pb = P + N * info.z;
-	let sc = shadowParams.matrices[ c ] * vec4f( Pb, 1.0 );
+	let sc = shadowClip( P, N * info.z, c );
 	let uvz = vec3f( sc.x * 0.5 + 0.5, 0.5 - sc.y * 0.5, sc.z );
-	if ( any( uvz.xy < vec2f( 0.0 ) ) || any( uvz.xy > vec2f( 1.0 ) ) || uvz.z > 1.0 ) { return 1.0; }
+	if ( any( uvz.xy < vec2f( 0.0 ) ) || any( uvz.xy > vec2f( 1.0 ) ) || uvz.z < 0.0 || uvz.z > 1.0 ) { return 1.0; }
 	let z = uvz.z - shadowParams.bias;
 	let texel = 1.0 / shadowParams.mapSize;
 	if ( pcss && u32( c ) < shadowParams.pcssCascades ) {
@@ -238,9 +243,9 @@ fn _sunShadow( P: vec3f, N: vec3f, pixel: vec2f, pcss: bool ) -> f32 {
 // one depth comparison in cascade c (1 = lit; outside the map: lit). For volumetric marches (haze shafts,
 // motes) where the jitter and the temporal resolve do the filtering.
 fn sunShadowCascadeHard( P: vec3f, c: i32 ) -> f32 {
-	let sc = shadowParams.matrices[ c ] * vec4f( P, 1.0 );
+	let sc = shadowClip( P, vec3f( 0.0 ), c );
 	let uv = vec2f( sc.x * 0.5 + 0.5, 0.5 - sc.y * 0.5 );
-	if ( any( uv <= vec2f( 0.0 ) ) || any( uv >= vec2f( 1.0 ) ) || sc.z > 1.0 ) { return 1.0; }
+	if ( any( uv <= vec2f( 0.0 ) ) || any( uv >= vec2f( 1.0 ) ) || sc.z < 0.0 || sc.z > 1.0 ) { return 1.0; }
 	return select( 0.0, 1.0, sc.z - 2e-5 <= _shadowDepth( uv, c ) );
 }
 // same in the cascade covering P (by view distance), 1 beyond the last one or with shadows off

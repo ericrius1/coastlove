@@ -87,7 +87,7 @@ export function installContactShadows( { depthTexture, skip = [] } ) {
 				let k2 = frame.near * iw * iw;
 				let diff = d - q.z * iw; // > 0: the depth buffer is in front of the ray
 				let thick = bias + 0.06 + u * len * 0.3;
-				let occ = diff > bias * k2 && diff < thick * k2 && uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0;
+				let occ = q.w > 0.0 && diff > bias * k2 && diff < thick * k2 && uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0;
 				hit = min( hit, select( 2.0, u, occ ) );
 			}`;
 		const go = g === 0 ? 'hit > 1.0' : `hit > 1.0 && w0 < ${ NEAR_DIST }.0`;
@@ -102,6 +102,13 @@ export function installContactShadows( { depthTexture, skip = [] } ) {
 		uniformName: 'contactShadowParams',
 		bindings: { contactDepth: { texture: () => ContactShadows.depthTexture } },
 		code: /* wgsl */`
+// Opaque depth belongs to the previous JITTERED camera. Use its local coordinates as well:
+// absolute view-projection multiplication can lose the entire contact-shadow ray far up the coast.
+fn contactPreviousClip( P: vec3f, w: f32 ) -> vec4f {
+	let relative = select( P, ( P - frame.prevCameraOrigin ) - frame.prevCameraOffset, w > 0.0 );
+	let q = frame.prevRelativeViewProj * vec4f( relative, w );
+	return q + vec4f( frame.prevJitter * q.w, 0.0, 0.0 );
+}
 // 0 (occluded) .. 1 visibility of the key light
 fn hookContactShadow( P: vec3f, N: vec3f ) -> f32 {
 #if IS_WATER || NO_CONTACT_SHADOWS || PASS_LATE || PASS_DEPTH || PASS_COLOR
@@ -118,11 +125,13 @@ fn hookContactShadow( P: vec3f, N: vec3f ) -> f32 {
 
 		let texSize = vec2f( textureDimensions( contactDepth ) );
 		let len = smoothstep( 2.0, 30.0, w0 ) * 0.7 + 0.3;
-		let q0 = frame.prevViewProjNoJitter * vec4f( P, 1.0 );
-		let qd = frame.prevViewProjNoJitter * vec4f( L * len, 0.0 );
+		let q0 = contactPreviousClip( P, 1.0 );
+		let qd = contactPreviousClip( L * len, 0.0 );
 		let bias = slope * 2.0 + w0 * 0.002 + 0.01;
 		// screen coordinate of P (the hook has no fragment coordinate)
-		let cc = frame.viewProj * vec4f( P, 1.0 );
+		let relative = ( P - frame.cameraOrigin ) - frame.cameraOffset;
+		let clip = frame.relativeViewProj * vec4f( relative, 1.0 );
+		let cc = clip + vec4f( frame.jitter * clip.w, 0.0, 0.0 );
 		let pix = floor( ( cc.xy / cc.w * vec2f( 0.5, -0.5 ) + 0.5 ) * frame.resolution );
 		let jit = fract( interleavedGradientNoise( pix ) + f32( frame.frameIndex ) * 0.618034 );
 		var hit = 2.0; // ray parameter of the first occluded sample (> 1: none)

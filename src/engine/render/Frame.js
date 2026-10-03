@@ -33,6 +33,7 @@ const FRAME_FIELDS = {
 	outputResolution: [ 'vec2f', new Vector2( 1, 1 ) ],
 	// sub-pixel jitter in NDC units (applied in viewProj)
 	jitter: [ 'vec2f', new Vector2() ],
+	prevJitter: [ 'vec2f', new Vector2() ],
 	frameIndex: [ 'u32', 0 ],
 	time: [ 'f32', 0 ], // simulation time (s)
 	dt: [ 'f32', 1 / 60 ],
@@ -65,7 +66,7 @@ const FRAME_FIELDS = {
 };
 
 const CAMERA_FIELDS = [ 'relativeViewProj','prevRelativeViewProj','cameraOrigin','cameraOffset','prevCameraOrigin','prevCameraOffset','view', 'proj', 'viewProj', 'invView', 'invProj', 'invViewProj', 'viewProjNoJitter', 'prevViewProjNoJitter',
-	'cameraPos', 'near', 'prevCameraPos', 'far', 'resolution', 'invResolution', 'jitter', 'reversedDepth' ];
+	'cameraPos', 'near', 'prevCameraPos', 'far', 'resolution', 'invResolution', 'jitter', 'prevJitter', 'reversedDepth' ];
 
 // Every view owns its camera values. Keep them alive across frames: the main view, three shadow
 // cascades and environment faces otherwise create hundreds of temporary math objects per frame.
@@ -133,7 +134,7 @@ export const GRAVITY = 9.81;
 const _m = new Matrix4();
 
 // Write the camera state for a draw. `jitter` in pixels (internal resolution).
-export function setFrameCamera( camera, width, height, { jitterX = 0, jitterY = 0, prevViewProj = null, prevCameraPos = null, block = FrameUniforms } = {} ) {
+export function setFrameCamera( camera, width, height, { jitterX = 0, jitterY = 0, prevViewProj = null, prevCameraPos = null, prevJitter = null, block = FrameUniforms } = {} ) {
 
 	const F = block.fields;
 	camera.updateMatrixWorld();
@@ -142,6 +143,8 @@ export function setFrameCamera( camera, width, height, { jitterX = 0, jitterY = 
 	// Snapshot history first, including when the caller passes a current field as its history.
 	if ( prevViewProj ) F.prevViewProjNoJitter.value.copy( prevViewProj );
 	if ( prevCameraPos ) F.prevCameraPos.value.copy( prevCameraPos );
+	if ( prevJitter ) F.prevJitter.value.copy( prevJitter );
+	else F.prevJitter.value.set( 0, 0 );
 	F.view.value.copy( view );
 	F.proj.value.copy( proj );
 	const vp = F.viewProjNoJitter.value.multiplyMatrices( proj, view );

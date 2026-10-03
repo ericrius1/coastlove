@@ -2146,7 +2146,8 @@ export class UI {
 						${ row( wasd, 'Move · car / plane: speed and steering' ) }
 						${ row( mouse, 'Look around · plane: turn and pitch · car: steer<small>Click the view to capture your trackpad</small>' ) }
 						${ row( k( 'Shift' ), 'Sprint · vehicle boost' ) }
-						${ row( k( 'Space' ), 'Jump, swim up, plane rise · car: drift' ) }
+						${ row( k( 'F' ), 'Car: magic takeoff / land<small>Every car can fly · Space rises · C descends</small>' ) }
+						${ row( k( 'Space' ), 'Jump, swim up, plane rise · car: drift / fly up' ) }
 						${ row( k( 'C' ), 'Plane descend (terrain clearance stays on)' ) }
 						${ row( k( 'C' ), 'Crouch, dive' ) }
 					</section>

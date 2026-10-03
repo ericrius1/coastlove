@@ -71,9 +71,9 @@ export class VehicleInteractions {
  prompt(){
   if(!this.available)return null;
   const mode=this.app.player.mode;
-  if(mode==='car')return{key:'E',text:'Get out of the car'};
+  if(mode==='car')return{key:'E',text:this.e.traffic.active?.flight?'Land and get out of the car':'Get out of the car · F magic flight'};
   if(mode==='boat'||mode==='deck')return{key:'E',text:'Get out of the boat'};
   if(mode==='plane')return{key:'E',text:'Land and get out of Marigold'};
-  const n=this.nearby();return n?{key:'E',text:n.kind==='car'?`Drive ${n.vehicle.name}`:n.kind==='boat'?'Board boat and take the helm':'Fly Marigold'}:null;
+  const n=this.nearby();return n?{key:'E',text:n.kind==='car'?`Drive ${n.vehicle.name} · F to fly once inside`:n.kind==='boat'?'Board boat and take the helm':'Fly Marigold'}:null;
  }
 }

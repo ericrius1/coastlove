@@ -137,6 +137,14 @@
 .exp-vehicles button{flex:1;white-space:nowrap;font-size:10px;min-height:31px;padding:7px 3px;border-radius:6px;background:#eef2cf08;border-color:#ccd7ba24}
 .exp-vehicles button[aria-pressed=true]{background:#c7d1ae;color:#15352e;border-color:#d1d6b4;box-shadow:0 1px 8px #d0dcaf14}
 .exp-vehicles button[aria-pressed=true] kbd{color:#365340;border-color:#304b392f}
+.exp-car-magic{margin-top:9px}
+.exp-car-views{display:flex;gap:5px;margin-bottom:7px}
+.exp-car-views[hidden]{display:none}
+.exp-ui .exp-car-views button{flex:1;padding:8px 6px;font-size:11px}
+.exp-ui .exp-car-views button[aria-pressed=true]{background:#a7dce52b;border-color:#b2e7e38c;color:#e1f4ee}
+.exp-ui .exp-flight-button{display:flex;align-items:center;justify-content:space-between;width:100%;padding:9px 11px;border-color:#a7dce55c;background:#8acee016;color:#d5f0ec;font-size:11px}
+.exp-ui .exp-flight-button[aria-pressed=true]{background:#8acee02b;border-color:#b2e7e38c}
+.exp-car-magic small{display:block;margin:7px 1px 0;font-size:9px;line-height:1.5;color:#b6d8ce}
 .exp-objective{font-size:10px;line-height:1.5;color:#d8c59e;margin:12px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .exp-objective::before{content:"↗";display:inline-block;color:#aac8b5;margin-right:7px}
 .exp-actions{display:grid;grid-template-columns:.85fr 1.15fr 1fr;gap:5px}

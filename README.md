@@ -45,6 +45,9 @@ A compact travel card now shows your nearest destination and camera bearing. Ope
 | **W / S in a car** | Accelerate / brake and reverse |
 | **A / D or trackpad in a car** | Steer; click the scene to capture the pointer |
 | **Shift / Space in a car** | Boost / handbrake drift |
+| **V in the Trail Rover / cabriolet** | Switch exterior / driver-seat camera; right-drag to orbit or look around |
+| **F in a car** | Magical takeoff / assisted landing in the same car |
+| **Space / C in a flying car** | Rise / descend; WASD steers and controls speed |
 | **Trackpad in flight** | Horizontal movement turns the plane; vertical movement pitches it |
 | **A / D · W / S in flight** | Turn · speed up/down |
 | **Shift + W · L · Space / C** | Fast cruise · level nose · rise/descend |
@@ -59,7 +62,23 @@ A compact travel card now shows your nearest destination and camera bearing. Ope
 
 Cars have independent arcade handling, momentum, drifting, suspension, airborne motion and landings. Leave the road, run down hills, or find the optional ramps near Twin Peaks, Mulholland and Griffith Park. NPCs use a pool of sixteen cars on nearby streets and resume driving after you exit. Ramps and handling are fictional gameplay additions in metre units.
 
+Every web car is enchanted: get in with **E**, drive normally, then press **F** (or the **Magic flight** button) to lift off. The wheels tuck in and a soft blue glow trails the car. **Space / C** controls altitude, **WASD / trackpad** controls speed and steering, and **Shift** boosts flight. **F** floats down onto a nearby clear patch of dry ground; press F during landing to fly again. **E** lands before getting out. Over water or blocked ground, keep flying toward an open shore to land. The travel card shows flight speed, height and controls.
+
 Map input belongs to the map while it is open. Traffic, birds, waves and time continue; an occupied vehicle coasts or continues flying. Close it with M or Escape to regain control.
+
+## Modular cars and residents
+
+Drive / **4** now summons the **Powder Blue Trail Rover**, based on the supplied open-top off-roader photo: pale blue scalloped bodywork, bronze cage and roof basket, treaded beadlock wheels, exposed gold hardware and reservoirs, louvered rear panel, and a strapped upright spare. **V** or the travel card switches between exterior and driver-seat views. Right-drag orbits outside or looks around inside while WASD keeps controlling the car. The cockpit has a working steering wheel and speedometer. Its appearance remains the same across regional travel; the unseen front and dashboard are inferred.
+
+The rest of the web fleet has eight body families: a cabriolet, coupe, surf wagon, hatchback, pickup, Coastliner van, rally car, and touring sedan. Sculpted bodywork, wheel arches, separate grilles and lamps, cabin trim, five wheel styles, two-tone roofs, stripes, roof racks, luggage, and surfboards combine with 24 coastal paint colors. The sixteen-car traffic pool adopts deterministic regional appearances only when a car is far away and unoccupied. Your current car keeps its identity.
+
+`describeCar(seed)` in `src/exploration/CarVariants.js` creates a stable appearance recipe; `makeCar(seed)` builds the drivable model; `makeCar()` defaults to the reference rover. Numeric seeds 0–7 showcase every family. Strings work too, such as `makeCar('venice:boardwalk:840')`. Extend the family, palette, wheel and compatible accessory catalogs to add modules. Reusable body templates and shared wheel kits keep construction cheap; generated cars own disposable color/accessory geometry and reduce detail at a distance. The regression suite checks 4,096 distinct appearance combinations without counting their IDs.
+
+Every named resident across California now receives the same textured, animated character foundation as the harbor. `describeCharacter(stableId, overrides)` in `src/game/CharacterVariants.js` combines wardrobe colors and patterns, hair colors, proportions, glasses, headwear, scarves, cameras and bags; story IDs retain a consistent look on return visits. `createCharacterVariant(descriptor)` assembles the animated model, while `createCharacterFallback(descriptor)` supplies its inexpensive distant/loading figure. Accessories follow the animated head and torso. These are thousands of appearance combinations built on the two credited Rocketbox source characters, rather than thousands of separately downloaded models or unique face scans.
+
+The nearby character budget is six detailed residents, with two concurrent loads, shared source textures/geometry and at most six reusable rigs per source. Hysteresis between the loading and retention distances prevents repeated swapping at one boundary. Teleporting cancels stale arrivals, and a failed download retains the procedural figure. Existing stories, greetings and conversations remain available. Skinning and normal-map derivatives preserve local precision; split object translations keep faces, attached accessories and motion stable even at the northern end of the state.
+
+The [generated car concept sheet](design/coastal-car-concepts.png) guided the silhouettes; its [imagegen prompt](design/coastal-car-concepts.prompt.txt) is retained for future additions. It is an art reference and adds no runtime image download. Development targets the web version unless native work is explicitly requested.
 
 ## Performance
 
@@ -91,6 +110,7 @@ npm run test:controls
 npm run test:metric
 npm run test:water
 npm run test:nature
+npm run test:appearance
 node test/sky-radiance.mjs
 npm run build
 ```
@@ -98,6 +118,8 @@ npm run build
 The WebGPU water regression checks that shoreline displacement, crest phase and beach wash advance on every frame at 30, 60 and 120 fps, including statewide clock ranges. Tests cover metre projection and data completeness, bridge surfaces, terrain visibility, safe arrivals, flight controls, wildlife budgets, vehicle interactions, ten simulated minutes of NPC driving, arcade steering, drifting, ramp jumps, landings and collision substeps. Browser tests in `test/controls-browser.mjs` exercise map focus, continued simulation, pan/zoom, teleportation and unified E interactions against the running app.
 
 The nature suite checks all six letter chapters, persistence, time windows, animal behavior and town placement, deterministic forests, distant plant streaming, audio lifecycle and spatial precision, and animated grotto pixels on WebGPU. `test/field-journal.mjs` adds optional DOM integration checks for the full journal and mystery flow; its header documents installing Linkedom in a temporary directory without changing project dependencies. `test/soundscape-browser.mjs` provides an optional real Web Audio offline render check.
+
+`node test/vehicle-gallery.mjs` and `node test/character-gallery.mjs` render the actual modular models through WebGPU for visual review (the textured character gallery uses macOS `sips` to decode embedded images). The appearance suite covers deterministic variety, geometry budgets, detail transitions, safe traffic recycling, shared character resources, independent animation, and canceled loads. Its GPU precision test compares silhouettes, mapped normals and animated motion at the origin and three statewide locations.
 
 Data rebuild scripts and prerequisites are documented in [public/geodata/README.md](public/geodata/README.md). Normal builds do not need Python or live map APIs. Pushing `main` builds and deploys through GitHub Actions.
 
@@ -110,4 +132,4 @@ Data rebuild scripts and prerequisites are documented in [public/geodata/README.
 - [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/), public-domain overview coastlines.
 - [Golden Gate Bridge official dimensions](https://www.goldengate.org/bridge/history-research/statistics-data/design-construction-stats/) and [Salesforce Tower dimensions](https://salesforcetower.com/about/).
 - National Park Service habitat references: [Channel Islands](https://www.nps.gov/chis/learn/nature/seabirds.htm), [Point Reyes](https://www.nps.gov/pore/planyourvisit/wildlife_viewing_birds.htm), [Redwood](https://www.nps.gov/redw/learn/nature/upload/bird-checklist-2015-508.pdf), [Cabrillo](https://www.nps.gov/cabr/learn/nature/birds.htm).
-- Harbor characters reuse the credited Rocketbox assets distributed with Tidewater. New residents and stories are fictional.
+- California residents reuse the two credited Rocketbox character assets distributed with Tidewater, with modular clothing and accessories. New residents and stories are fictional.

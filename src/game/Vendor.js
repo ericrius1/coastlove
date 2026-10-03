@@ -1,8 +1,6 @@
-import { Group, Mesh, Vector3 } from '../engine/index.js';
-import { SkinnedModel } from '../engine/render/Skinning.js';
-import { loadGLB } from '../engine/loaders/GLTF.js';
-import { prepare, mergePrepared, cylinder, sphere, roundedBox, box, rod, mat4 } from '../world/boat/GeoKit.js';
-import { createPropMaterial, PAT } from './GameMaterials.js';
+import { Group } from '../engine/index.js';
+import { createPropMaterial } from './GameMaterials.js';
+import { describeCharacter, createCharacterFallback, createCharacterVariant, characterURL } from './CharacterVariants.js';
 
 // A trader the player talks to (E within `radius`). Swappable: `model` is a slot (a Group) that
 // holds the stand-in figure; setModel( obj ) replaces it. loadCharacter( url ) swaps in a skinned,
@@ -12,7 +10,7 @@ import { createPropMaterial, PAT } from './GameMaterials.js';
 //   vendor.group (add to the scene), vendor.inRange( p ), vendor.update( dt, lookAt )
 export class Vendor {
 
-	constructor( { name, kind = 'buyer', position, yaw = 0, radius = 2.6, greeting = '', idle = '', material = null, look = {}, character = null } ) {
+	constructor( { name, kind = 'buyer', position, yaw = 0, radius = 2.6, greeting = '', idle = '', material = null, look = {}, character = null, appearance = null } ) {
 
 		this.name = name;
 		this.kind = kind; // 'buyer' (fish stand) | 'shop' (upgrades)
@@ -28,10 +26,16 @@ export class Vendor {
 		this.model = new Group();
 		this.group.add( this.model );
 		this.material = material || createPropMaterial( 'vendor' );
-		this.figure = new Mesh( buildFigure( look ), this.material );
-		this.figure.castShadow = true;
+		this.appearance = appearance || describeCharacter( name, { ...look, accent: look.apron, body: character?.url?.includes( 'marta' ) ? 'marta' : character?.url?.includes( 'joe' ) ? 'joe' : undefined } );
+		this._customizeCharacter = !! appearance;
+		this.fallback = createCharacterFallback( this.appearance, this.material );
+		this.figure = this.fallback;
+		this._characterGeneration = 0;
+		this._characterPromise = null;
+		this._characterSpec = null;
+		this._retryCharacterAt = 0;
 		this.model.add( this.figure );
-		this._t = Math.random() * 10;
+		this._t = this.appearance.phase * 10;
 		this._yawOff = 0;
 		this.character = null;
 		this.talking = false;
@@ -40,20 +44,68 @@ export class Vendor {
 
 	}
 
-	// clips: { idle, talk, greet } clip names in the GLB
-	async loadCharacter( url, { idle = 'idle_neutral_01', talk = 'gestic_talk_relaxed_01', greet = 'wave_01', listen = null } = {} ) {
+	configureCharacter( options = {} ) {
 
-		const model = await SkinnedModel.create( await loadGLB( url ) );
-		// on land, never under water: no caustics / wave lookups in their shaders
-		for ( const m of model.materials ) m.underwaterLighting = 'lite';
-		this.clips = { idle, talk, greet, listen };
-		model.play( idle, { fade: 0.01, from: Math.random() * model.clipDuration( idle ) } );
-		// pose right away: far from the player the animation holds, and the rest pose is a T-pose
-		model.update( 0 );
-		// one-shot clips (the wave) hand back to the idle / talk loop
-		model.onClipEnd = () => model.play( this.talking ? talk : idle, { fade: 0.5 } );
-		this.character = model;
-		this.setModel( model.group );
+		this._characterSpec = { url: characterURL( this.appearance.body ), ...options };
+
+	}
+
+	// Distance streaming only requests the six nearest candidates. Generation
+	// checks cancel stale asynchronous arrivals after a teleport or LOD change.
+	setCharacterDetail( wanted ) {
+
+		if ( ! wanted ) { this.releaseCharacter(); return; }
+		if ( this.character || this._characterPromise || this._t < this._retryCharacterAt || ! this._characterSpec ) return;
+		const { url, ...options } = this._characterSpec;
+		this.loadCharacter( url, options ).catch( error => {
+
+			this._retryCharacterAt = this._t + 30;
+			console.warn( `Using fallback character for ${ this.name }`, error );
+
+		} );
+
+	}
+
+	// clips: { idle, talk, greet }. Existing fish-stand/chandlery callers keep
+	// their original textured appearance, but share the decoded source assets.
+	loadCharacter( url, { idle = this.appearance.idle, talk = 'gestic_talk_relaxed_01', greet = 'wave_01', listen = null, customize = this._customizeCharacter } = {} ) {
+
+		const generation = ++ this._characterGeneration;
+		const body = url.includes( 'marta' ) ? 'marta' : url.includes( 'joe' ) ? 'joe' : this.appearance.body;
+		const descriptor = body === this.appearance.body ? this.appearance : describeCharacter( this.appearance.id, { ...this.appearance, body } );
+		const wanted = () => generation === this._characterGeneration;
+		const pending = createCharacterVariant( descriptor, { url, wanted, customize } ).then( model => {
+
+			if ( ! model ) { this._retryCharacterAt = this._t + 2; return null; }
+			if ( ! wanted() ) { model.dispose(); return null; }
+			try {
+				for ( const clip of [ idle, talk, greet, listen ] ) if ( clip && ! model.clips.has( clip ) ) throw new Error( 'Vendor: unknown character clip ' + clip );
+				model.play( idle, { fade: 0.01, from: this.appearance.phase * model.clipDuration( idle ) } );
+				model.update( 0 );
+			} catch ( error ) { model.dispose(); throw error; }
+			this.character?.dispose();
+			this.clips = { idle, talk, greet, listen };
+			model.onClipEnd = () => model.play( this.talking ? talk : idle, { fade: 0.5 } );
+			this.character = model;
+			this.setModel( model.group );
+			return model;
+
+		} ).finally( () => { if ( this._characterPromise === pending ) this._characterPromise = null; } );
+		this._characterPromise = pending;
+		return pending;
+
+	}
+
+	releaseCharacter() {
+
+		if ( ! this.character && ! this._characterPromise ) return;
+		this._characterGeneration ++;
+		if ( this.character ) {
+
+			this.character.dispose(); this.character = null; this._near = false;
+			this.setModel( this.fallback );
+
+		}
 
 	}
 
@@ -125,59 +177,5 @@ export class Vendor {
 		f.scale.y = 1 + Math.sin( this._t * 1.6 ) * 0.006;
 
 	}
-
-}
-
-// Stand-in figure (~1.72 m, facing local +Z): a weathered islander in a hat, apron and boots.
-// look: { shirt, trousers, apron, hat, hair, skin, beard } colours to tell the traders apart.
-function buildFigure( look = {} ) {
-
-	const P = [];
-	const add = ( g, o ) => P.push( prepare( g, o ) );
-	const SKIN = { color: look.skin ?? 0x9a6a4a, rough: 0.55, pattern: PAT.skin };
-	const SHIRT = { color: look.shirt ?? 0x5d7a8c, rough: 0.9, pattern: PAT.cloth };
-	const TROUSERS = { color: look.trousers ?? 0x3f4a3c, rough: 0.9, pattern: PAT.cloth };
-	const APRON = { color: look.apron ?? 0xd8b24a, rough: 0.45 };
-	const BOOTS = { color: 0xe8e2d0, rough: 0.5 };
-	const HAT = { color: look.hat ?? 0xc9a86a, rough: 0.9, pattern: PAT.cloth };
-	const HAIR = { color: look.hair ?? 0xb8b2a6, rough: 0.9 };
-	const V = ( x, y, z ) => new Vector3( x, y, z );
-	// legs and white rubber boots
-	for ( const s of [ - 1, 1 ] ) {
-
-		add( cylinder( 0.075, 0.068, 0.36, 10 ), { ...BOOTS, matrix: mat4( s * 0.1, 0.18, 0.01 ) } );
-		add( cylinder( 0.068, 0.06, 0.08, 10 ), { ...BOOTS, matrix: mat4( s * 0.1, 0.04, 0.05, 0, 0, 0, 1, 1, 1.5 ) } );
-		add( cylinder( 0.085, 0.072, 0.48, 10 ), { ...TROUSERS, matrix: mat4( s * 0.1, 0.6, 0 ) } );
-
-	}
-
-	// torso: a little barrel-chested, a slight stoop
-	add( roundedBox( 0.38, 0.52, 0.24, 0.08, 3 ), { ...SHIRT, matrix: mat4( 0, 1.1, - 0.01, 0.06 ) } );
-	add( roundedBox( 0.36, 0.14, 0.22, 0.06, 2 ), { ...TROUSERS, matrix: mat4( 0, 0.86, 0 ) } );
-	// apron with bib and straps
-	add( box( 0.34, 0.62, 0.012 ), { ...APRON, matrix: mat4( 0, 0.86, 0.125, 0.05 ) } );
-	add( box( 0.24, 0.24, 0.012 ), { ...APRON, matrix: mat4( 0, 1.2, 0.132, 0.08 ) } );
-	for ( const s of [ - 1, 1 ] ) add( rod( V( s * 0.1, 1.3, 0.13 ), V( s * 0.12, 1.36, - 0.1 ), 0.012, 4 ), APRON );
-	// arms: sleeves rolled up, forearms resting forward
-	for ( const s of [ - 1, 1 ] ) {
-
-		add( rod( V( s * 0.22, 1.3, 0 ), V( s * 0.25, 1.02, 0.05 ), 0.055, 8, 0.05 ), SHIRT );
-		add( rod( V( s * 0.25, 1.02, 0.05 ), V( s * 0.2, 0.92, 0.27 ), 0.045, 8, 0.04 ), SKIN );
-		add( sphere( 0.045, 8, 6 ), { ...SKIN, matrix: mat4( s * 0.19, 0.9, 0.31 ) } );
-
-	}
-
-	// neck, head, ears, nose, grey hair and beard stubble
-	add( cylinder( 0.055, 0.06, 0.1, 10 ), { ...SKIN, matrix: mat4( 0, 1.41, 0.01 ) } );
-	add( sphere( 0.108, 14, 10 ), { ...SKIN, matrix: mat4( 0, 1.55, 0.02, 0, 0, 0, 1, 1.12, 1.02 ) } );
-	add( sphere( 0.02, 6, 5 ), { ...SKIN, matrix: mat4( 0, 1.54, 0.13, 0, 0, 0, 1, 1.4, 1 ) } );
-	for ( const s of [ - 1, 1 ] ) add( sphere( 0.025, 6, 5 ), { ...SKIN, matrix: mat4( s * 0.105, 1.55, 0.0, 0, 0, 0, 0.5, 1, 1 ) } );
-	add( sphere( 0.112, 12, 8, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.3 ), { ...HAIR, matrix: mat4( 0, 1.55, 0.03 ) } );
-	for ( const s of [ - 1, 1 ] ) add( sphere( 0.012, 6, 4 ), { color: 0x1a1512, rough: 0.2, matrix: mat4( s * 0.04, 1.58, 0.115 ) } );
-	// straw hat
-	add( cylinder( 0.1, 0.115, 0.1, 16 ), { ...HAT, matrix: mat4( 0, 1.7, 0.01 ) } );
-	add( cylinder( 0.26, 0.25, 0.015, 24 ), { ...HAT, matrix: mat4( 0, 1.655, 0.01, - 0.05 ) } );
-	add( cylinder( 0.118, 0.118, 0.025, 16 ), { color: 0x6b3a2a, rough: 0.8, matrix: mat4( 0, 1.67, 0.01 ) } );
-	return mergePrepared( P );
 
 }

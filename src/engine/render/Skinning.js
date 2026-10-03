@@ -24,9 +24,9 @@ import { decodeImage } from '../loaders/GLTF.js';
 // objects' model matrix (model.group's world matrix) places them in the world.
 //
 // GPU: one storage buffer per model with 2 x joints mat4 (this frame, then the previous frame).
-// The material vertex hook skins position and normal with 4 weights and writes the world position,
-// the normal and last frame's world position (useWorld), so motion vectors (TAA, motion blur)
-// include the animation, and the shadow / depth passes skin the same way (same hook).
+// Skin in model space, then let the normal camera-relative mesh path project it. Forming an
+// absolute world vertex first loses facial detail at statewide coordinates. Previous-pose
+// displacement is a small vector, so animated motion survives the same relative projection.
 //
 // Geometry attributes: skinIndex (vec4u, Uint32Array) and skinWeight (vec4f).
 // Materials: materials( { gltfMaterial, name, textures: { albedo, normal, orm }, alphaMode } )
@@ -38,11 +38,13 @@ const SKIN_VERTEX = ( J ) => /* wgsl */`
 	let sk = skinJoints[ sj.x ] * sw.x + skinJoints[ sj.y ] * sw.y + skinJoints[ sj.z ] * sw.z + skinJoints[ sj.w ] * sw.w;
 	let skp = skinJoints[ sj.x + ${ J }u ] * sw.x + skinJoints[ sj.y + ${ J }u ] * sw.y + skinJoints[ sj.z + ${ J }u ] * sw.z + skinJoints[ sj.w + ${ J }u ] * sw.w;
 	let lp = vec4f( v.position, 1.0 );
-	let lm = v.model * sk;
-	v.useWorld = true;
-	v.worldPos = ( lm * lp ).xyz;
-	v.worldNormal = cofactor3( lm ) * v.normal;
-	v.prevWorldPos = ( v.prevModel * skp * lp ).xyz;
+	let current = ( sk * lp ).xyz;
+	let previous = ( skp * lp ).xyz;
+	v.position = current;
+	v.normal = cofactor3( sk ) * v.normal;
+	v.prevWorldOffset = ( v.prevModel * vec4f( previous - current, 0.0 ) ).xyz;
+	// Translation-free, but world-oriented, for stable derivative normal mapping.
+	o.vSkinPosition = ( v.model * vec4f( current, 0.0 ) ).xyz;
 `;
 
 // Default glTF-style PBR surface: base colour (sRGB, alpha), ORM (G roughness, B metalness), tangent-space
@@ -66,7 +68,7 @@ export function skinnedMaterial( { name, joints, jointBuffer, textures = {}, alp
 #endif
 #if HAS_NORMAL
 	let nm = textureSample( chNormal, smpAnisoRepeat, in.uv ).xyz * 2.0 - 1.0;
-	s.normal = perturbNormalByMap( in.P, in.N, in.uv, nm );
+	s.normal = perturbNormalByMap( in.vs.vSkinPosition, in.N, in.uv, nm );
 #endif
 ${ surface }
 `;
@@ -74,6 +76,7 @@ ${ surface }
 		name,
 		modules,
 		attributes: { skinIndex: 'vec4u', skinWeight: 'vec4f' },
+		varyings: { vSkinPosition: 'vec3f' },
 		storage: { skinJoints: { storage: jointBuffer, access: 'read' } },
 		textures: T,
 		uniforms,
@@ -163,6 +166,37 @@ export class SkinnedModel {
 
 	}
 
+	// Instances keep independent animation/joint buffers and material uniforms,
+	// while expensive geometry and decoded textures belong to the source model.
+	static fromTemplate( template ) {
+
+		const model = new SkinnedModel( template.gltf );
+		model._sharedGeometry = true;
+		const materials = new Map();
+		for ( const source of template.meshes ) {
+
+			let material = materials.get( source.material );
+			if ( ! material ) {
+
+				material = source.material.clone();
+				material.bindings.skinJoints = { storage: model.jointBuffer, access: 'read' };
+				materials.set( source.material, material );
+				model.materials.push( material );
+
+			}
+			const mesh = new Mesh( source.geometry, material );
+			mesh.name = source.name;
+			mesh.frustumCulled = false;
+			mesh.castShadow = source.castShadow;
+			mesh.receiveShadow = source.receiveShadow;
+			model.meshes.push( mesh );
+			model.group.add( mesh );
+
+		}
+		return model;
+
+	}
+
 	constructor( gltf ) {
 
 		this.gltf = gltf;
@@ -198,7 +232,7 @@ export class SkinnedModel {
 		this._first = true;
 		// clips by name
 		this.clips = new Map();
-		for ( const a of gltf.animations ) this.clips.set( a.name, a );
+		for ( const a of gltf.animations ) this.clips.set( a.name, { ...a, channels: a.channels.map( channel => ( { ...channel, _k: 0 } ) ) } );
 		this.layers = []; // { clip, time, weight, target, fadeRate, loop, speed }
 		// blend accumulators
 		this._acc = gltf.nodes.map( () => ( { t: new Float32Array( 3 ), r: new Float32Array( 4 ), s: new Float32Array( 3 ), wt: 0, wr: 0, ws: 0 } ) );
@@ -498,7 +532,9 @@ export class SkinnedModel {
 	dispose() {
 
 		this.jointBuffer.destroy();
-		for ( const m of this.meshes ) m.geometry.dispose && m.geometry.dispose();
+		if ( ! this._sharedGeometry ) for ( const m of this.meshes ) m.geometry.dispose && m.geometry.dispose();
+		for ( const material of this.materials ) material.dispose();
+		this.group.removeFromParent();
 
 	}
 

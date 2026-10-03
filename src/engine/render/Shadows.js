@@ -7,13 +7,15 @@ import { Matrix4, Vector3, Vector4 } from '../math/index.js';
 //
 // Cascades are fitted to bounding spheres of slices of the main camera frustum (stable under
 // rotation) and snapped to their texel grid (no shimmer when moving). Near cascade every frame,
-// the next every 2nd, the rest every 4th; a cascade's matrix only changes when its map is rendered.
+// the next every 2nd, the rest every 4th while the view is still. Motion refreshes a cascade before
+// its terrain morph / coverage can lag behind the main view. Map and sampling transform move together.
 // Depth is standard (0 near .. 1 far) with an orthographic projection; the lighting module samples
 // it with PCSS on the near cascade and a 16-tap PCF elsewhere.
 
-const _corners = [];
-for ( let i = 0; i < 8; i ++ ) _corners.push( new Vector3() );
 const _center = new Vector3();
+const _zero = new Vector3();
+const _cameraPosition = new Vector3();
+const _cameraDirection = new Vector3();
 const _up = new Vector3( 0, 1, 0 );
 const _inv = new Matrix4();
 const _tmp = new Vector3();
@@ -38,6 +40,8 @@ export class SunShadows {
 			},
 			block: createViewUniforms( 'shadowView' + i ),
 			viewProj: new Matrix4(),
+			viewPosition: new Vector3(), viewDirection: new Vector3(),
+			projection: new Matrix4(),
 			radius: 0,
 			dirty: true,
 		} ) );
@@ -76,28 +80,22 @@ export class SunShadows {
 		const far = i === this.count - 1 ? y : y + mF * 0.5;
 		ShadowUniforms.fields.blend.value[ i ] = new Vector4( x, y, mN, mF );
 		// slice corners in world space (perspective: scale the unit frustum by distance)
-		const tanY = Math.tan( camera.fov * Math.PI / 360 );
-		const tanX = tanY * camera.aspect;
-		let k = 0;
-		for ( const d of [ near, far ] ) for ( const sx of [ - 1, 1 ] ) for ( const sy of [ - 1, 1 ] ) {
-
-			_corners[ k ++ ].set( sx * tanX * d, sy * tanY * d, - d ).applyMatrix4( camera.matrixWorld );
-
-		}
+		const tanY = 1 / camera.projectionMatrix.elements[ 5 ];
+		const tanX = 1 / camera.projectionMatrix.elements[ 0 ];
 
 		// bounding sphere of the slice: centre on the axis, radius to the farthest corner
 		const zc = Math.min( far, ( near + far ) / 2 * ( 1 + tanX * tanX + tanY * tanY ) );
 		_center.set( 0, 0, - zc ).applyMatrix4( camera.matrixWorld );
-		let r = 0;
-		for ( const p of _corners ) r = Math.max( r, p.distanceTo( _center ) );
-		r = Math.ceil( r * 16 ) / 16; // quantised: the texel size stays fixed while the camera turns
+		// Compute in camera space: subtracting distant world corners can change the rounded radius.
+		let r = Math.max( Math.hypot( near * tanX, near * tanY, near - zc ), Math.hypot( far * tanX, far * tanY, far - zc ) );
+		r = Math.ceil( r / ( 1 - 2 / this.size ) * 16 ) / 16; // room for texel snapping at the edges
 		c.radius = r;
 
 		// light view looking along -sunDir, snapped to texels
 		const cam = c.camera;
 		const L = sunDir;
 		const up = Math.abs( L.y ) > 0.99 ? _tmp.set( 1, 0, 0 ) : _up;
-		cam.matrixWorld.lookAt( L, new Vector3( 0, 0, 0 ), up ); // rotation only: z axis = sunDir
+		cam.matrixWorld.identity().lookAt( L, _zero, up ); // discard the previous eye before snapping
 		_inv.copy( cam.matrixWorld ).invert();
 		const texel = 2 * r / this.size;
 		const ls = _tmp4.set( _center.x, _center.y, _center.z, 1 ).applyMatrix4( _inv );
@@ -115,8 +113,15 @@ export class SunShadows {
 		c.viewProj.multiplyMatrices( cam.projectionMatrix, cam.matrixWorldInverse );
 
 		const U = ShadowUniforms.fields;
-		U.matrices.value[ i ] = c.viewProj.clone();
+		// Float32 absolute matrices lose several shadow texels across California. Subtract an exact
+		// local origin first; apply the normal bias AFTER that subtraction so centimetres survive.
+		const origin = U.origins.value[ i ];
+		origin.set( Math.floor( eye.x / 1024 ) * 1024, Math.floor( eye.y / 1024 ) * 1024, Math.floor( eye.z / 1024 ) * 1024, 0 );
+		U.matrices.value[ i ].copy( c.viewProj ).multiply( _inv.makeTranslation( origin.x, origin.y, origin.z ) );
 		U.cascades.value[ i ] = new Vector4( far, texel, this.normalBias[ i ] ?? 0.05, f - n );
+		c.viewPosition.setFromMatrixPosition( camera.matrixWorld );
+		c.viewDirection.setFromMatrixColumn( camera.matrixWorld, 2 );
+		c.projection.copy( camera.projectionMatrix );
 
 	}
 
@@ -127,12 +132,18 @@ export class SunShadows {
 		ShadowUniforms.fields.enabled.value = this.enabled && sunDir.y > - 0.05 ? 1 : 0;
 		if ( ! this.enabled ) return [];
 		camera.updateMatrixWorld();
+		_cameraPosition.setFromMatrixPosition( camera.matrixWorld );
+		_cameraDirection.setFromMatrixColumn( camera.matrixWorld, 2 );
 		const sunMoved = this.lastSun.angleTo( sunDir ) > 1e-4;
 		this.lastSun.copy( sunDir );
 		const out = [];
 		for ( let i = 0; i < this.count; i ++ ) {
 
-			if ( sunMoved || this.cascades[ i ].dirty || ( this.frame + i ) % this.periods[ i ] === 0 ) {
+			const c = this.cascades[ i ];
+			const viewShift = _cameraPosition.distanceTo( c.viewPosition ) + _cameraDirection.distanceTo( c.viewDirection ) * this.splits[ i ];
+			const moved = viewShift > Math.max( 0.03, c.radius / this.size );
+			const lensChanged = camera.projectionMatrix.elements.some( ( v, k ) => v !== c.projection.elements[ k ] );
+			if ( sunMoved || c.dirty || moved || lensChanged || ( this.frame + i ) % this.periods[ i ] === 0 ) {
 
 				this._fit( i, camera, sunDir );
 				this.cascades[ i ].dirty = false;
